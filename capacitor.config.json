@@ -1,0 +1,8 @@
+{
+  "appId": "kr.co.sharetoilet.urgentgame",
+  "appName": "급해! 화장실",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  }
+}

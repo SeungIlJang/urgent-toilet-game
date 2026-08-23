@@ -1,0 +1,10 @@
+{
+  "name": "급해! 화장실",
+  "short_name": "급해!",
+  "description": "버튼 하나로 즐기는 모바일 전용 2D 러너 게임",
+  "start_url": "/",
+  "display": "fullscreen",
+  "orientation": "portrait",
+  "background_color": "#102238",
+  "theme_color": "#70d6cf"
+}

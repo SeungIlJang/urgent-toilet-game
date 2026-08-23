@@ -1,0 +1,26 @@
+{
+  "name": "urgent-toilet-game",
+  "private": true,
+  "version": "0.5.4",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "npm run verify:input && npm run verify:balance && npm run verify:runtime && vite build",
+    "verify:input": "node scripts/verify-input-state.mjs",
+    "verify:balance": "node scripts/verify-balance.mjs",
+    "verify:runtime": "node scripts/verify-runtime.mjs",
+    "preview": "vite preview --host 0.0.0.0",
+    "android:sync": "npm run build && cap sync android && npm run verify:native-assets",
+    "verify:native-assets": "node scripts/verify-native-assets.mjs",
+    "android:apk": "npm run android:sync && cd android && ./gradlew assembleDebug"
+  },
+  "dependencies": {
+    "@capacitor/core": "^7.4.3",
+    "phaser": "^3.90.0"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^7.4.3",
+    "@capacitor/cli": "^7.4.3",
+    "vite": "^7.1.2"
+  }
+}
