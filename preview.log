@@ -1,0 +1,8 @@
+
+> urgent-toilet-game@0.5.4 preview
+> vite preview --host 0.0.0.0 --port 4173
+
+  [32m➜[39m  [1mLocal[22m:   [36mhttp://localhost:[1m4173[22m/[39m
+  [32m➜[39m  [1mNetwork[22m: [36mhttp://100.102.216.126:[1m4173[22m/[39m
+  [32m➜[39m  [1mNetwork[22m: [36mhttp://172.30.1.16:[1m4173[22m/[39m
+[2m[32m  ➜[39m[22m[2m  press [22m[1mh + enter[22m[2m to show help[22m

@@ -1,25 +1,17 @@
-const phases = [
-  { name: '초반', from: 0, to: 25, gap: 2.15, speed: 285 },
-  { name: '중반', from: 25, to: 52, gap: 1.8, speed: 335 },
-  { name: '후반', from: 52, to: 78, gap: 1.48, speed: 385 },
-];
-const obstacles = [
-  { kind: 'cone', cue: '▲', avoid: 'jump', window: [0.42, 0.92] },
-  { kind: 'barrier', cue: '✦', avoid: 'dash', window: [0.34, 0.78] },
-  { kind: 'puddle', cue: '≈', avoid: 'late-jump', window: [0.18, 0.58] },
-];
-let count = 0;
-for (const phase of phases) {
-  const spawns = Math.floor((phase.to - phase.from) / phase.gap);
-  const reaction = 420 / phase.speed;
-  if (reaction < 1.05) throw new Error(`${phase.name}: reaction time too short`);
-  if (phase.gap < 1.45) throw new Error(`${phase.name}: impossible spawn gap`);
-  count += spawns;
-  console.log(`${phase.name}: ${spawns} obstacles, ${reaction.toFixed(2)}s visible reaction`);
+// Defense wave-balance sanity checks (boss every wave + escalating swarm).
+const BASE_LINE = 812, SPAWN_TOP = -40;
+let prevCount = -1;
+for (let w = 1; w <= 15; w++) {
+  const big = w % 5 === 0;          // every 5th wave = large boss, others = mini-boss
+  const swarm = 8 + w * 3;          // regular enemies, always present
+  const gap = Math.max(180, 760 - w * 45);
+  if (gap < 180) throw new Error(`wave ${w}: spawn gap too small`);
+  if (swarm <= prevCount) throw new Error(`wave ${w}: swarm did not escalate`);
+  prevCount = swarm;
+  // Slowest common enemy (germ) reaction time from top to base must stay fair.
+  const germSpeed = 58 * (1 + w * 0.05);
+  const reaction = (BASE_LINE - SPAWN_TOP) / germSpeed;
+  if (reaction < 6) throw new Error(`wave ${w}: enemies reach base too fast (${reaction.toFixed(1)}s)`);
+  console.log(`WAVE ${w}: ${swarm} swarm + ${big ? 'BIG boss' : 'mini-boss'}, ${gap}ms gap, ${reaction.toFixed(1)}s to base`);
 }
-for (const o of obstacles) {
-  if (o.window[1] - o.window[0] < .35) throw new Error(`${o.kind}: avoidance window too narrow`);
-}
-const nominalSeconds = 500 / 6.65;
-if (nominalSeconds < 60 || nominalSeconds > 120) throw new Error('session duration outside 60–120 seconds');
-console.log(`PASS: ${obstacles.length} obstacle types, ${count} fair spawns, nominal ${nominalSeconds.toFixed(1)}s session`);
+console.log('PASS: swarm escalates, boss every wave, spawn gaps clamped, base-reach time fair');

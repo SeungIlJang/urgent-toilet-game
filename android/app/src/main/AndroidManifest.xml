@@ -25,6 +25,11 @@
 
         </activity>
 
+        <!-- AdMob App ID (화장실 수비대) -->
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="ca-app-pub-9017259597860535~5927065313" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

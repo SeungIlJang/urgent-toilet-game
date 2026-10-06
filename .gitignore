@@ -3,3 +3,8 @@ dist/
 .DS_Store
 android/.gradle/
 android/app/build/
+
+# secrets & build artifacts (do not push)
+android/app/keystore.properties
+*.jks
+releases/*.aab
