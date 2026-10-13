@@ -1,7 +1,7 @@
 {
   "appId": "kr.co.sharetoilet.urgentgame",
   "appName": "화장실 수비대",
-  "webDir": "dist",
+  "webDir": "www",
   "server": {
     "androidScheme": "https"
   }

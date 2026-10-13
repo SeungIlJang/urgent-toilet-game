@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#70d6cf" />
+    <title>화장실 수비대</title>
+  </head>
+  <body style="margin:0;background:#0b1730">
+    <!-- OTA 로더: 원격(games-site/toilet.html) 우선 로드 → 캐시 → 오프라인이면 내장 game.html 폴백 -->
+    <script>(function(){var GAME='toilet',REMOTE='https://seungiljang.github.io/games/'+GAME+'.html',KEY='ota_'+GAME,done=false;
+function render(h){try{document.open();document.write(h);document.close();}catch(e){location.replace('game.html');}}
+function fallback(){var c=null;try{c=localStorage.getItem(KEY);}catch(e){}if(c){render(c);}else{location.replace('game.html');}}
+var ctrl=window.AbortController?new AbortController():null;var to=setTimeout(function(){if(done)return;done=true;if(ctrl){try{ctrl.abort();}catch(e){}}fallback();},5000);
+try{fetch(REMOTE+'?t='+Date.now(),{cache:'no-store',signal:ctrl?ctrl.signal:undefined}).then(function(r){if(!r.ok)throw 0;return r.text();}).then(function(h){if(done)return;done=true;clearTimeout(to);if(!h||h.length<500)throw 0;try{localStorage.setItem(KEY,h);}catch(e){}render(h);}).catch(function(){if(done)return;done=true;clearTimeout(to);fallback();});}catch(e){done=true;clearTimeout(to);fallback();}})();</script>
+  </body>
+</html>
