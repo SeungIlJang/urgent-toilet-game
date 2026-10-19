@@ -7,4 +7,12 @@ android/app/build/
 # secrets & build artifacts (do not push)
 android/app/keystore.properties
 *.jks
+# 빌드 산출물은 저장소에 두지 않는다. 예전에 디버그 APK/zip 20개가 쌓여 149MB를 먹었다.
+# 리포트(.md)는 기록이라 남긴다.
 releases/*.aab
+releases/*.apk
+releases/*.zip
+
+# 개발 중 생기는 로그
+preview.log
+*.log
