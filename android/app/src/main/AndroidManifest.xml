@@ -45,4 +45,6 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="com.google.android.gms.permission.AD_ID" />
+    <!-- 게임 내 햅틱(navigator.vibrate). 이 권한이 없으면 WebView 에서 진동 호출이 조용히 무시된다. -->
+    <uses-permission android:name="android.permission.VIBRATE" />
 </manifest>

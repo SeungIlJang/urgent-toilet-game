@@ -1,17 +1,22 @@
 {
   "name": "urgent-toilet-game",
   "private": true,
-  "version": "0.5.4",
+  "version": "1.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "build": "npm run verify:input && npm run verify:balance && npm run verify:runtime && vite build",
-    "verify:input": "node scripts/verify-input-state.mjs",
+    "preview": "vite preview --host 0.0.0.0",
+    "verify": "npm run verify:balance && npm run verify:runtime && npm run verify:release",
     "verify:balance": "node scripts/verify-balance.mjs",
     "verify:runtime": "node scripts/verify-runtime.mjs",
-    "preview": "vite preview --host 0.0.0.0",
-    "android:sync": "npm run build && cap sync android && npm run verify:native-assets",
+    "verify:release": "node scripts/verify-release.mjs",
     "verify:native-assets": "node scripts/verify-native-assets.mjs",
+    "verify:economy": "node scripts/verify-economy.mjs",
+    "sync:www": "node scripts/sync-www.mjs",
+    "shot:store": "node scripts/shot-store.mjs",
+    "build": "npm run verify && vite build && npm run sync:www && npm run verify:economy",
+    "build:release": "node scripts/build-release.mjs",
+    "android:sync": "npm run build && npx cap sync android && npm run verify:native-assets",
     "android:apk": "npm run android:sync && cd android && ./gradlew assembleDebug"
   },
   "dependencies": {
@@ -22,6 +27,7 @@
   "devDependencies": {
     "@capacitor/android": "^7.4.3",
     "@capacitor/cli": "^7.4.3",
+    "puppeteer-core": "^25.14.0",
     "vite": "^7.1.2",
     "vite-plugin-singlefile": "^2.3.3"
   }
