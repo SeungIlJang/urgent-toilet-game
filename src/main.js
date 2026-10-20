@@ -179,6 +179,9 @@ class GameScene extends Phaser.Scene {
   }
   makeTexFx(){
     if(!this.textures.exists('vgrad')){const cw=8,ch=256,t=this.textures.createCanvas('vgrad',cw,ch),ctx=t.getContext(),g=ctx.createLinearGradient(0,0,0,ch);g.addColorStop(0,'rgba(8,18,38,0.42)');g.addColorStop(.45,'rgba(8,18,38,0.0)');g.addColorStop(1,'rgba(0,0,0,0.30)');ctx.fillStyle=g;ctx.fillRect(0,0,cw,ch);t.refresh()}
+    // 타이틀 배경. 본편 세상이 밝은 하늘색인데 타이틀만 남색이라 분위기가 정반대였다.
+    if(!this.textures.exists('titlebg')){const cw=8,ch=256,t=this.textures.createCanvas('titlebg',cw,ch),ctx=t.getContext(),g=ctx.createLinearGradient(0,0,0,ch);
+      g.addColorStop(0,'#a9e4ff');g.addColorStop(.40,'#d6f2ff');g.addColorStop(.70,'#f3efff');g.addColorStop(1,'#ffe4ef');ctx.fillStyle=g;ctx.fillRect(0,0,cw,ch);t.refresh()}
     // 타이틀 제목 뒤 조명용 라디얼 글로우. 가산 합성으로 깔아야 어두운 배경에서 탁해지지 않는다.
     if(!this.textures.exists('glow')){const s=256,t=this.textures.createCanvas('glow',s,s),ctx=t.getContext(),g=ctx.createRadialGradient(s/2,s/2,0,s/2,s/2,s/2);g.addColorStop(0,'rgba(255,255,255,0.90)');g.addColorStop(.5,'rgba(255,255,255,0.26)');g.addColorStop(1,'rgba(255,255,255,0)');ctx.fillStyle=g;ctx.fillRect(0,0,s,s);t.refresh()}
     if(!this.textures.exists('btile')){const s=64,t=this.textures.createCanvas('btile',s,s),ctx=t.getContext();ctx.fillStyle='rgba(255,255,255,0.92)';ctx.fillRect(3,3,s-6,s-6);ctx.strokeStyle='rgba(90,120,150,0.95)';ctx.lineWidth=4;ctx.strokeRect(0,0,s,s);t.refresh()}
@@ -526,42 +529,73 @@ class GameScene extends Phaser.Scene {
   doRevive(){this.revived=true;this.setHudVisible(true);this.baseHp=Math.max(1,Math.round(this.baseMax*0.5));for(const e of[...this.enemies]){e.bar?.destroy();e.barBg?.destroy();if(!this.reducedMotion)this.fx.emitParticleAt(e.x,e.y,6);e.destroy()}this.enemies=[];if(!this.reducedMotion)this.cameras.main.flash(320,120,255,180);this.sound.win?.();this.punch(1.06);this.banner('✨ 부활! WAVE 다시 시작','#59c2ff');this.toSpawn=0;this.wave--;this.startWave();this.lastFire=this.time.now;this.updateHud()}
   applyTheme(tier){const t=THEMES[Phaser.Math.Clamp(tier,0,THEMES.length-1)];if(!t)return;this.cameras.main.setBackgroundColor(t.sky);this.sky?.setFillStyle(t.sky);this.groundBand?.setFillStyle(t.ground);this.groundEdge?.setFillStyle(t.edge)}
   persistSettings(){save({...this.settings,soundOn:this.sound.soundOn,vibrationOn:this.sound.vibrationOn})}
-  settingButton(y,label,onClick){const t=this.add.text(W/2,y,label,{fontSize:'18px',color:'#fff',backgroundColor:'#ffffff22',padding:{x:12,y:7}}).setOrigin(.5).setInteractive();t.on('pointerdown',e=>{this._uiTap=true;e.event?.stopPropagation?.();onClick()});this.overlay.add(t);return t}
+  // 타이틀용 말랑한 알약 버튼. 예전엔 회색 네모라 밋밋했다.
+  // Graphics 로 둥근 사각형 + 아래 그림자 + 흰 테두리를 그리고, 입력은 투명 사각형이 받는다.
+  settingButton(y,label,color,onClick){
+    const t=this.add.text(W/2,y,label,{fontSize:'19px',fontStyle:'900',color:'#3a5570'}).setOrigin(.5);
+    const w=Phaser.Math.Clamp(t.width+56,300,440),h=46,x=W/2-w/2,r=h/2,g=this.add.graphics();
+    g.fillStyle(0x5b7fa6,.20);g.fillRoundedRect(x,y-h/2+6,w,h,r);
+    g.fillStyle(color,1);g.fillRoundedRect(x,y-h/2,w,h,r);
+    g.lineStyle(3,0xffffff,.9);g.strokeRoundedRect(x,y-h/2,w,h,r);
+    const hit=this.add.rectangle(W/2,y,w,h,0xffffff,.001).setInteractive();
+    hit.on('pointerdown',e=>{this._uiTap=true;e.event?.stopPropagation?.();onClick()});
+    this.overlay.add(g);this.overlay.add(t);this.overlay.add(hit);return t}
+  // 소리·진동은 글자 버튼으로 두 줄을 먹었다. 작은 동그라미 토글로 줄여 화면을 비운다.
+  toggleButton(x,y,onIcon,offIcon,isOn,onToggle){
+    const c=this.add.circle(x,y,27,0xffffff,isOn()?.92:.45).setStrokeStyle(3,0x9ad0ff).setInteractive();
+    const t=this.add.text(x,y,isOn()?onIcon:offIcon,{fontSize:'22px'}).setOrigin(.5).setAlpha(isOn()?1:.5);
+    c.on('pointerdown',e=>{this._uiTap=true;e.event?.stopPropagation?.();onToggle();
+      t.setText(isOn()?onIcon:offIcon).setAlpha(isOn()?1:.5);c.setFillStyle(0xffffff,isOn()?.92:.45)});
+    this.overlay.add(c);this.overlay.add(t);return c}
   dailyCheckIn(){const t=todayKey(),s=this.settings;if(s.lastAttend===t)return{reward:0,streak:s.attendStreak||1};const y=new Date(Date.now()-864e5).toLocaleDateString('sv-SE');s.attendStreak=(s.lastAttend===y?(s.attendStreak||0)+1:1);s.lastAttend=t;// 출석 보상은 💎로 준다. 예전엔 코인이라 다음 죽음에 전부 날아가 의미가 없었다.
     const reward=15+Math.min(s.attendStreak,7)*5;s.gems=(+s.gems||0)+reward;save(s);this.updateHud?.();return{reward,streak:s.attendStreak}}
   showStart(){this.setHudVisible(false);this.overlay=this.add.container(0,0).setDepth(20);
-    this.overlay.add(this.add.rectangle(W/2,H/2,W,H,0x0b1730,.92).setInteractive());
-    this.overlay.add(this.add.rectangle(W/2,180,W,360,0x15408a,.45));
-    // 예전엔 큰 반투명 원 두 개(노랑·파랑)를 깔았는데, 어두운 배경과 섞여 '회색 얼룩'처럼 보였다.
-    // 가산 합성 글로우로 바꿔 제목 뒤 조명으로 읽히게 한다.
-    this.overlay.add(this.add.image(W/2,124,'glow').setDisplaySize(620,300).setTint(0x59c2ff).setAlpha(.34).setBlendMode(Phaser.BlendModes.ADD));
-    // 예전엔 색 점 3개가 부제(y168)·조작 설명(y200) 글자 위에 겹쳐 글씨를 가렸다.
-    // 아래 빈 띠로 내리고, 밋밋한 원 대신 실제 적 스프라이트를 써서 '기지로 몰려오는 적'으로 읽히게 한다.
-    // 화장실 실루엣의 얼굴(x 230~310)은 피해서 배치한다.
-    // 어두운 배경이라 밝은 적만 쓴다(파리는 몸이 검어 거의 안 보였다).
-    [['e_germ',70,824,.34],['e_tissue_red',168,850,.30],['e_slime',454,828,.34]].forEach(([tex,x,y,sc],i)=>{
-      const e=this.add.image(x,y,tex).setScale(sc).setAlpha(.72);this.overlay.add(e);
-      this.tweens.add({targets:e,y:y+16,duration:1500+i*320,yoyo:true,repeat:-1,ease:'Sine.easeInOut'})});
-    this.overlay.add(this.add.text(W/2+3,120,'🚽 화장실 수비대',{fontSize:'39px',fontStyle:'900',color:'#000'}).setOrigin(.5).setAlpha(.35));
-    const tt=this.add.text(W/2,117,'🚽 화장실 수비대',{fontSize:'39px',fontStyle:'900',color:'#fff',stroke:'#2a6fb0',strokeThickness:8}).setOrigin(.5);this.overlay.add(tt);this.tweens.add({targets:tt,y:111,duration:1200,yoyo:true,repeat:-1,ease:'Sine.easeInOut'});
-    this.overlay.add(this.add.text(W/2,168,'몰려오는 적을 막아 화장실을 지켜라!',{fontSize:'17px',fontStyle:'bold',color:'#bfe8ff'}).setOrigin(.5));
-    this.overlay.add(this.add.text(W/2,200,'자동 발사 · 화면 탭 💣폭탄 · 무한 웨이브',{fontSize:'13px',color:'#8fc4ff'}).setOrigin(.5));
-    this.overlay.add(this.add.text(W/2,254,MISSIONS.map(m=>`${this.settings.completed?.[m.id]?'✓':Math.min(m.target,this.missionValue(m))+'/'+m.target} ${m.label} → ${LOOKS[m.reward].name}`).join('\n'),{fontSize:'14px',color:'#bdf5ce',align:'center',lineSpacing:6}).setOrigin(.5));
+    // 밝은 파스텔 배경. 어두운 남색이라 본편(하늘색 세상)과 분위기가 정반대였고 아기 변기도 실루엣으로 묻혔다.
+    this.overlay.add(this.add.image(W/2,H/2,'titlebg').setDisplaySize(W,H).setInteractive());
+    // 두둥실 떠다니는 비눗방울
+    for(let i=0;i<7;i++){const b=this.add.circle(Phaser.Math.Between(40,W-40),Phaser.Math.Between(120,900),Phaser.Math.Between(7,18),0xffffff,.5);
+      this.overlay.add(b);this.tweens.add({targets:b,y:b.y-70,alpha:{from:.5,to:.15},duration:Phaser.Math.Between(2600,4200),yoyo:true,repeat:-1,ease:'Sine.easeInOut',delay:i*260})}
+    // 제목 뒤 뭉게구름(흰 글로우)
+    this.overlay.add(this.add.image(W/2,106,'glow').setDisplaySize(600,250).setAlpha(.75));
+    this.overlay.add(this.add.text(W/2+3,103,'🚽 화장실 수비대',{fontSize:'39px',fontStyle:'900',color:'#7fb6d9'}).setOrigin(.5).setAlpha(.45));
+    const tt=this.add.text(W/2,100,'🚽 화장실 수비대',{fontSize:'39px',fontStyle:'900',color:'#fff',stroke:'#3b86c7',strokeThickness:8}).setOrigin(.5);
+    this.overlay.add(tt);this.tweens.add({targets:tt,y:94,duration:1200,yoyo:true,repeat:-1,ease:'Sine.easeInOut'});
+    this.overlay.add(this.add.text(W/2,150,'몰려오는 적을 막아 화장실을 지켜라!',{fontSize:'17px',fontStyle:'bold',color:'#2a6fb0'}).setOrigin(.5));
+    this.overlay.add(this.add.text(W/2,176,'자동 발사 · 화면 탭 💣폭탄 · 무한 웨이브',{fontSize:'13px',color:'#6a93b5'}).setOrigin(.5));
+    // 일일 미션은 맨 글씨로 두면 글자 벽이라, 말랑한 카드에 담는다.
+    {const mg=this.add.graphics();mg.fillStyle(0xffffff,.78);mg.fillRoundedRect(W/2-212,192,424,88,22);
+      mg.lineStyle(3,0x9ad0ff,.9);mg.strokeRoundedRect(W/2-212,192,424,88,22);this.overlay.add(mg);
+      this.overlay.add(this.add.text(W/2,236,MISSIONS.map(m=>`${this.settings.completed?.[m.id]?'✓':Math.min(m.target,this.missionValue(m))+'/'+m.target} ${m.label} → ${LOOKS[m.reward].name}`).join('\n'),{fontSize:'14px',color:'#2b4a63',align:'center',lineSpacing:7}).setOrigin(.5))}
     // 💎 영구 강화는 예전엔 웨이브 사이 정산 화면에서만 열 수 있었다. 그 화면을 없앴으니 여기가 제자리다.
-    this.shopBtn=this.settingButton(322,`💎 영구 강화 (보유 ${this.settings.gems})`,()=>this.showShop());
-    this.settingButton(362,`👤 수비대: ${LOOKS[this.settings.selected]?.name||'기본'}`,()=>this.showCharacters());
-    this.settingButton(402,`🔫 무기 (장착: ${(WEAPONS.find(w=>w.id===this.settings.weapon)||WEAPONS[0]).name})`,()=>this.showWeapons());
-    this.settingButton(442,'🏆 랭킹 보기',()=>this.showLeaderboard());
-    this.soundBtn=this.settingButton(482,`소리 ${this.sound.soundOn?'켜짐':'꺼짐'}`,()=>{this.sound.soundOn=!this.sound.soundOn;this.soundBtn.setText(`소리 ${this.sound.soundOn?'켜짐':'꺼짐'}`);this.persistSettings()});
-    this.vibeBtn=this.settingButton(522,`진동 ${this.sound.vibrationOn?'켜짐':'꺼짐'}`,()=>{this.sound.vibrationOn=!this.sound.vibrationOn;this.vibeBtn.setText(`진동 ${this.sound.vibrationOn?'켜짐':'꺼짐'}`);this.persistSettings()});
-    this.overlay.add(this.add.text(W/2,588,`최고 ${this.bestScore.toLocaleString()}점 · 최고 WAVE ${this.bestWave}  ·  💎 ${this.settings.gems}`,{fontSize:'16px',color:'#ffe082',fontStyle:'bold',align:'center'}).setOrigin(.5));
-    {const ci=this.dailyCheckIn();this.overlay.add(this.add.text(W/2,624,ci.reward>0?`🎁 출석 보상 +💎${ci.reward}  ·  연속 ${ci.streak}일!`:`✓ 오늘 출석 완료  ·  연속 ${ci.streak}일`,{fontSize:'15px',fontStyle:'bold',color:ci.reward>0?'#9be7a0':'#8fb3c8'}).setOrigin(.5));if(ci.reward>0)this.sound?.coin?.()}
-    const start=this.add.text(W/2,672,'▶  게임 시작',{fontSize:'30px',fontStyle:'900',color:'#06301a',backgroundColor:'#37e07a',padding:{x:46,y:16}}).setOrigin(.5).setInteractive();start.on('pointerdown',e=>{this._uiTap=true;e.event?.stopPropagation?.();this.startGame()});this.overlay.add(start);this.tweens.add({targets:start,scale:{from:1,to:1.06},duration:700,yoyo:true,repeat:-1,ease:'Sine.easeInOut'});
-    this.overlay.add(this.add.text(W/2,720,'(아무 곳이나 탭해도 시작)',{fontSize:'12px',color:'#8fb3c8'}).setOrigin(.5));
-    this.overlay.add(this.add.text(W/2,752,`v${APP_VERSION}`,{fontSize:'12px',color:'#5f7a90'}).setOrigin(.5));
+    this.shopBtn=this.settingButton(318,`💎 영구 강화 (보유 ${this.settings.gems})`,0xffe08a,()=>this.showShop());
+    this.settingButton(374,`👤 수비대: ${LOOKS[this.settings.selected]?.name||'기본'}`,0xd5c6ff,()=>this.showCharacters());
+    this.settingButton(430,`🔫 무기 (장착: ${(WEAPONS.find(w=>w.id===this.settings.weapon)||WEAPONS[0]).name})`,0xa7e3ff,()=>this.showWeapons());
+    this.settingButton(486,'🏆 랭킹 보기',0xffc2d4,()=>this.showLeaderboard());
+    this.soundBtn=this.toggleButton(W/2-44,542,'🔊','🔇',()=>this.sound.soundOn,()=>{this.sound.soundOn=!this.sound.soundOn;this.persistSettings()});
+    this.vibeBtn=this.toggleButton(W/2+44,542,'📳','📴',()=>this.sound.vibrationOn,()=>{this.sound.vibrationOn=!this.sound.vibrationOn;this.persistSettings()});
+    this.overlay.add(this.add.text(W/2,592,`최고 ${this.bestScore.toLocaleString()}점 · 최고 WAVE ${this.bestWave}  ·  💎 ${this.settings.gems}`,{fontSize:'16px',color:'#a05a12',fontStyle:'bold',align:'center'}).setOrigin(.5));
+    {const ci=this.dailyCheckIn();this.overlay.add(this.add.text(W/2,620,ci.reward>0?`🎁 출석 보상 +💎${ci.reward}  ·  연속 ${ci.streak}일!`:`✓ 오늘 출석 완료  ·  연속 ${ci.streak}일`,{fontSize:'15px',fontStyle:'bold',color:ci.reward>0?'#1f8a4d':'#6a8ca3'}).setOrigin(.5));if(ci.reward>0)this.sound?.coin?.()}
+    // 시작 버튼: 그래픽+글자를 컨테이너에 담아야 가운데를 기준으로 통통 튄다.
+    {const sw=330,sh=68,sy=676,sg=this.add.graphics();
+      sg.fillStyle(0x2f9e5e,.35);sg.fillRoundedRect(-sw/2,-sh/2+8,sw,sh,sh/2);
+      sg.fillStyle(0x4ade80,1);sg.fillRoundedRect(-sw/2,-sh/2,sw,sh,sh/2);
+      sg.lineStyle(4,0xffffff,.95);sg.strokeRoundedRect(-sw/2,-sh/2,sw,sh,sh/2);
+      const sc=this.add.container(W/2,sy,[sg,this.add.text(0,0,'▶  게임 시작',{fontSize:'30px',fontStyle:'900',color:'#06351c'}).setOrigin(.5)]);
+      this.overlay.add(sc);this.tweens.add({targets:sc,scale:{from:1,to:1.05},duration:700,yoyo:true,repeat:-1,ease:'Sine.easeInOut'});
+      const hit=this.add.rectangle(W/2,sy,sw,sh,0xffffff,.001).setInteractive();
+      hit.on('pointerdown',e=>{this._uiTap=true;e.event?.stopPropagation?.();this.startGame()});this.overlay.add(hit)}
+    this.overlay.add(this.add.text(W/2,726,'(아무 곳이나 탭해도 시작)',{fontSize:'12px',color:'#7f9fb5'}).setOrigin(.5));
+    // 주인공을 밝게 보여준다. 예전엔 어두운 오버레이 뒤에 가려 실루엣으로만 보였다.
+    const hero=this.add.image(W/2,818,'poop').setScale(.56);this.overlay.add(hero);
+    this.tweens.add({targets:hero,y:810,duration:1400,yoyo:true,repeat:-1,ease:'Sine.easeInOut'});
+    // 적들이 화장실로 다가오는 구도. 주인공(x 203~337)은 피해서 양옆에 둔다.
+    [['e_germ',100,852,.38],['e_slime',440,846,.38]].forEach(([tex,x,y,sc],i)=>{
+      const e=this.add.image(x,y,tex).setScale(sc);this.overlay.add(e);
+      this.tweens.add({targets:e,y:y+14,duration:1500+i*340,yoyo:true,repeat:-1,ease:'Sine.easeInOut'})});
+    this.overlay.add(this.add.text(W/2,906,`v${APP_VERSION}`,{fontSize:'12px',color:'#9bb6c8'}).setOrigin(.5));
     // 메인 한가운데 붉은 버튼으로 두면 시작 버튼 바로 아래라 잘못 누르기 쉽다.
     // 맨 아래 작고 차분한 링크로 내린다(확인 모달은 그대로).
-    const reset=this.add.text(W/2,912,'⟲ 데이터 초기화',{fontSize:'13px',color:'#8090a0',backgroundColor:'#ffffff14',padding:{x:12,y:7}}).setOrigin(.5).setInteractive();reset.on('pointerdown',e=>{this._uiTap=true;e.event?.stopPropagation?.();this.confirmReset()});this.overlay.add(reset)}
+    const reset=this.add.text(W/2,936,'⟲ 데이터 초기화',{fontSize:'13px',color:'#8c7f93',backgroundColor:'#ffffff66',padding:{x:12,y:7}}).setOrigin(.5).setInteractive();reset.on('pointerdown',e=>{this._uiTap=true;e.event?.stopPropagation?.();this.confirmReset()});this.overlay.add(reset)}
   confirmReset(){this.resetOverlay?.destroy();const c=this.resetOverlay=this.add.container(0,0).setDepth(55);c.add(this.add.rectangle(W/2,H/2,W,H,0x000000,.82).setInteractive());c.add(this.add.text(W/2,380,'⟲ 데이터 초기화',{fontSize:'30px',fontStyle:'900',color:'#ff9e9e'}).setOrigin(.5));c.add(this.add.text(W/2,442,'코인·강화·무기·전직 해금·랭킹이\n모두 사라져요. 계속할까요?',{fontSize:'18px',color:'#fff',align:'center',lineSpacing:8}).setOrigin(.5));const yes=this.add.text(W/2-82,536,'초기화',{fontSize:'22px',fontStyle:'900',color:'#fff',backgroundColor:'#c0392b',padding:{x:20,y:12}}).setOrigin(.5).setInteractive();yes.on('pointerdown',e=>{this._uiTap=true;e.event?.stopPropagation?.();try{localStorage.removeItem(SAVE_KEY)}catch{}this.resetOverlay=null;this.scene.restart()});c.add(yes);const no=this.add.text(W/2+82,536,'취소',{fontSize:'22px',fontStyle:'900',color:'#102238',backgroundColor:'#ffe082',padding:{x:22,y:12}}).setOrigin(.5).setInteractive();no.on('pointerdown',e=>{this._uiTap=true;e.event?.stopPropagation?.();this.resetOverlay?.destroy();this.resetOverlay=null});c.add(no)}
   // 한 판의 정산: 일일 미션 진행 · 미션 해금 · 기록 · 💎 보상 · 런 범위 초기화.
   // 예전에는 showEnd() 안에만 있어서, 일시정지 → 처음으로 로 나가면 그 판의 💎도 미션 진행도 통째로 사라졌다.
