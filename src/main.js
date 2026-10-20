@@ -543,15 +543,15 @@ class GameScene extends Phaser.Scene {
   persistSettings(){save({...this.settings,soundOn:this.sound.soundOn,vibrationOn:this.sound.vibrationOn})}
   // 타이틀용 말랑한 알약 버튼. 예전엔 회색 네모라 밋밋했다.
   // Graphics 로 둥근 사각형 + 아래 그림자 + 흰 테두리를 그리고, 입력은 투명 사각형이 받는다.
-  settingButton(y,label,color,onClick){
-    const t=this.add.text(W/2,y,label,{fontSize:'19px',fontStyle:'900',color:'#3a5570'}).setOrigin(.5);
-    const w=Phaser.Math.Clamp(t.width+56,300,440),h=46,x=W/2-w/2,r=h/2,g=this.add.graphics();
+  settingButton(y,label,color,onClick,c=this.overlay,fs=19,h=46){
+    const t=this.add.text(W/2,y,label,{fontSize:fs+'px',fontStyle:'900',color:'#3a5570'}).setOrigin(.5);
+    const w=Phaser.Math.Clamp(t.width+56,300,460),x=W/2-w/2,r=h/2,g=this.add.graphics();
     g.fillStyle(0x5b7fa6,.20);g.fillRoundedRect(x,y-h/2+6,w,h,r);
     g.fillStyle(color,1);g.fillRoundedRect(x,y-h/2,w,h,r);
     g.lineStyle(3,0xffffff,.9);g.strokeRoundedRect(x,y-h/2,w,h,r);
     const hit=this.add.rectangle(W/2,y,w,h,0xffffff,.001).setInteractive();
     hit.on('pointerdown',e=>{this._uiTap=true;e.event?.stopPropagation?.();onClick()});
-    this.overlay.add(g);this.overlay.add(t);this.overlay.add(hit);return t}
+    c.add(g);c.add(t);c.add(hit);return t}
   // 소리·진동은 글자 버튼으로 두 줄을 먹었다. 작은 동그라미 토글로 줄여 화면을 비운다.
   toggleButton(x,y,onIcon,offIcon,isOn,onToggle){
     const c=this.add.circle(x,y,27,0xffffff,isOn()?.92:.45).setStrokeStyle(3,0x9ad0ff).setInteractive();
@@ -631,13 +631,44 @@ class GameScene extends Phaser.Scene {
     Object.assign(this.settings,{bestScore:this.bestScore,bestWave:this.bestWave,soundOn:this.sound.soundOn,vibrationOn:this.sound.vibrationOn});
     save(this.settings);
     return this._settleResult={final,isBest,rank,ranked,newly,gems,earned}}
-  showEnd(){const {final,isBest,rank,ranked,newly,gems,earned}=this.settleRun();const grade=this.wave>=25?'S':this.wave>=16?'A':this.wave>=8?'B':'C',share=`화장실 수비대 ${grade}등급 · WAVE ${this.wave} · ${final.toLocaleString()}점 · 🪙${this.coins}!`;this.add.rectangle(W/2,488,486,546,0x102238,.96).setStrokeStyle(6,0xffffff).setDepth(30);this.add.text(W/2,270,'기지 함락!',{fontSize:'38px',fontStyle:'900',color:'#ff7b89'}).setOrigin(.5).setDepth(31);this.add.text(W/2,420,`WAVE ${this.wave} 방어 · 등급 ${grade}\n${final.toLocaleString()}점${isBest?' · 신기록!':''}${ranked?` · 🏆${rank}위`:''}\n처치 ${this.kills} · 폭탄 ${this.bombsUsed}회\n💎 +${gems} 획득 (보유 ${this.settings.gems})\n🪙 ${earned}과 무기 강화는 이번 판과 함께 사라져요\n영구 강화·해금한 무기는 그대로 유지${newly.length?'\n해금: '+newly.join(', '):''}`,{fontSize:'19px',color:'#fff',align:'center',lineSpacing:8}).setOrigin(.5).setDepth(31);// 웨이브마다 뜨던 '코인 2배' 광고를 여기로 옮겼다. 흐름을 끊지 않고, 판 보상(💎)을 2배로 준다.
-    {let used=false;const dbl=this.add.text(W/2,548,`🎬 광고 보고 💎 2배! (+${gems})`,{fontSize:'20px',fontStyle:'900',color:'#06301a',backgroundColor:'#37e07a',padding:{x:18,y:11}}).setOrigin(.5).setDepth(32).setInteractive();
-      this.tweens.add({targets:dbl,scale:{from:1,to:1.05},duration:620,yoyo:true,repeat:-1,ease:'Sine.easeInOut'});
-      dbl.on('pointerdown',e=>{this._uiTap=true;e.event?.stopPropagation?.();if(used)return;used=true;this.tweens.killTweensOf(dbl);dbl.setScale(1).setText('광고 재생 중…');
-        this.showAd(()=>{this.settings.gems=(+this.settings.gems||0)+gems;save(this.settings);this.sound.coin?.();dbl.setText(`✓ 💎 2배 완료! (보유 ${this.settings.gems})`).setBackgroundColor('#33465a')},
-          ()=>{used=false;dbl.setText('⚠️ 광고 취소됨 · 다시 시도')})});}
-    const rankBtn=this.add.text(W/2,608,'🏆 랭킹 보기',{fontSize:'20px',fontStyle:'900',color:'#102238',backgroundColor:'#9ad0ff',padding:{x:14,y:9}}).setOrigin(.5).setDepth(32).setInteractive();rankBtn.on('pointerdown',e=>{this._uiTap=true;e.event?.stopPropagation?.();this.showLeaderboard()});const again=this.add.text(W/2,662,'다시 도전 ▶',{fontSize:'21px',fontStyle:'900',color:'#fff',backgroundColor:'#37c871',padding:{x:18,y:10}}).setOrigin(.5).setDepth(32).setInteractive();again.on('pointerdown',e=>{this._uiTap=true;e.event?.stopPropagation?.();this._interCount=(this._interCount||0)+1;if(this._interCount%3===0)this.showInterstitial();this.startGame()});const shareBtn=this.add.text(W/2,714,'기록 공유/복사',{fontSize:'16px',color:'#fff',backgroundColor:'#ffffff22',padding:{x:12,y:7}}).setOrigin(.5).setDepth(32).setInteractive();shareBtn.on('pointerdown',async e=>{this._uiTap=true;e.event?.stopPropagation?.();try{if(navigator.share)await navigator.share({title:'화장실 수비대',text:share});else await navigator.clipboard.writeText(share);shareBtn.setText('복사 완료 ✓')}catch{shareBtn.setText('취소됨')}})}
+  // 예전엔 어두운 남색 카드에 6줄짜리 글자 벽이었다. 타이틀과 같은 파스텔 톤으로 맞추고,
+  // 기록은 큰 글씨 / 보상 / 안내로 층을 나눠 읽히게 했다. 시무룩한 주인공도 올린다.
+  showEnd(){const {final,isBest,rank,ranked,newly,gems,earned}=this.settleRun();
+    const grade=this.wave>=25?'S':this.wave>=16?'A':this.wave>=8?'B':'C';
+    const share=`화장실 수비대 ${grade}등급 · WAVE ${this.wave} · ${final.toLocaleString()}점 · 🪙${this.coins}!`;
+    const c=this.endOverlay=this.add.container(0,0).setDepth(30);
+    c.add(this.add.image(W/2,H/2,'titlebg').setDisplaySize(W,H).setInteractive());
+    // 시무룩한 아기 변기. 푸른 기운을 살짝 입히고 눈물 방울을 띄운다.
+    const hero=this.add.image(W/2,150,'poop').setScale(.44).setTint(0xcfdcf2);c.add(hero);
+    this.tweens.add({targets:hero,y:156,duration:1600,yoyo:true,repeat:-1,ease:'Sine.easeInOut'});
+    [[W/2-58,158],[W/2+60,166]].forEach(([tx,ty],i)=>{const d=this.add.text(tx,ty,'💧',{fontSize:'20px'}).setOrigin(.5);c.add(d);
+      this.tweens.add({targets:d,y:ty+22,alpha:{from:.9,to:0},duration:1400,repeat:-1,delay:i*500})});
+    const title=this.add.text(W/2,256,'기지 함락!',{fontSize:'38px',fontStyle:'900',color:'#e8558a',stroke:'#fff',strokeThickness:7}).setOrigin(.5);
+    c.add(title);this.tweens.add({targets:title,scale:{from:1.18,to:1},duration:340,ease:'Back.easeOut'});
+    // 기록 카드
+    const cy=300,ch=newly.length?318:290,g=this.add.graphics();
+    g.fillStyle(0x5b7fa6,.18);g.fillRoundedRect(W/2-228,cy+8,456,ch,26);
+    g.fillStyle(0xffffff,.88);g.fillRoundedRect(W/2-228,cy,456,ch,26);
+    g.lineStyle(3,0x9ad0ff,.9);g.strokeRoundedRect(W/2-228,cy,456,ch,26);c.add(g);
+    c.add(this.add.text(W/2,cy+42,`WAVE ${this.wave} 방어  ·  등급 ${grade}`,{fontSize:'22px',fontStyle:'900',color:'#2b4a63'}).setOrigin(.5));
+    c.add(this.add.text(W/2,cy+86,`${final.toLocaleString()}점${isBest?'  🎉신기록!':''}${ranked?`  🏆${rank}위`:''}`,{fontSize:'24px',fontStyle:'900',color:'#c2410c'}).setOrigin(.5));
+    c.add(this.add.text(W/2,cy+122,`처치 ${this.kills} · 폭탄 ${this.bombsUsed}회`,{fontSize:'15px',color:'#5b7fa6'}).setOrigin(.5));
+    // 보상 줄은 금색 알약으로 강조
+    {const rt=this.add.text(W/2,cy+166,`💎 +${gems} 획득  (보유 ${this.settings.gems})`,{fontSize:'18px',fontStyle:'900',color:'#7a4a06'}).setOrigin(.5);
+      const rw=rt.width+40,rg=this.add.graphics();rg.fillStyle(0xffe08a,1);rg.fillRoundedRect(W/2-rw/2,cy+166-21,rw,42,21);
+      rg.lineStyle(2,0xffffff,.9);rg.strokeRoundedRect(W/2-rw/2,cy+166-21,rw,42,21);c.add(rg);c.add(rt)}
+    c.add(this.add.text(W/2,cy+210,`🪙 ${earned}과 무기 강화는 이번 판과 함께 사라져요`,{fontSize:'13px',color:'#7f9fb5'}).setOrigin(.5));
+    c.add(this.add.text(W/2,cy+234,'영구 강화 · 해금한 무기는 그대로 유지',{fontSize:'13px',color:'#7f9fb5'}).setOrigin(.5));
+    if(newly.length)c.add(this.add.text(W/2,cy+266,`🎁 해금: ${newly.join(', ')}`,{fontSize:'15px',fontStyle:'900',color:'#1f8a4d'}).setOrigin(.5));
+    // 웨이브마다 뜨던 '코인 2배' 광고를 여기로 옮겼다. 흐름을 끊지 않고, 판 보상(💎)을 2배로 준다.
+    {let used=false;const dbl=this.settingButton(cy+ch+54,`🎬 광고 보고 💎 2배! (+${gems})`,0x4ade80,()=>{
+        if(used)return;used=true;dbl.setText('광고 재생 중…');
+        this.showAd(()=>{this.settings.gems=(+this.settings.gems||0)+gems;save(this.settings);this.sound.coin?.();dbl.setText(`✓ 💎 2배 완료! (보유 ${this.settings.gems})`)},
+          ()=>{used=false;dbl.setText('⚠️ 광고 취소됨 · 다시 시도')})},c,19);}
+    this.settingButton(cy+ch+112,'🏆 랭킹 보기',0xa7e3ff,()=>this.showLeaderboard(),c,19);
+    this.settingButton(cy+ch+174,'다시 도전 ▶',0xffd36e,()=>{this._interCount=(this._interCount||0)+1;if(this._interCount%3===0)this.showInterstitial();this.startGame()},c,24,56);
+    const shareBtn=this.add.text(W/2,cy+ch+244,'기록 공유/복사',{fontSize:'14px',color:'#6a8ca3',backgroundColor:'#ffffff88',padding:{x:14,y:8}}).setOrigin(.5).setInteractive();
+    shareBtn.on('pointerdown',async e=>{this._uiTap=true;e.event?.stopPropagation?.();try{if(navigator.share)await navigator.share({title:'화장실 수비대',text:share});else await navigator.clipboard.writeText(share);shareBtn.setText('복사 완료 ✓')}catch{shareBtn.setText('취소됨')}});c.add(shareBtn)}
   showShop(){this.shopOverlay?.destroy();const c=this.shopOverlay=this.add.container(0,0).setDepth(50);c.add(this.add.rectangle(W/2,H/2,W,H,0x0b1a2b,.95).setInteractive());c.add(this.add.text(W-34,52,'✖',{fontSize:'30px',fontStyle:'900',color:'#fff',backgroundColor:'#00000066',padding:{x:12,y:6}}).setOrigin(.5).setDepth(52).setInteractive().on('pointerdown',e=>{this._uiTap=true;e.event?.stopPropagation?.();this.shopOverlay?.destroy();this.shopOverlay=null}));c.add(this.add.text(W/2,80,'💎 영구 강화',{fontSize:'32px',fontStyle:'900',color:'#ffe082'}).setOrigin(.5));c.add(this.add.text(W/2,122,`보유 💎 ${this.settings.gems}`,{fontSize:'21px',fontStyle:'bold',color:'#fff'}).setOrigin(.5));c.add(this.add.text(W/2,150,'죽어도 사라지지 않아요',{fontSize:'13px',color:'#8fb3c8'}).setOrigin(.5));UPGRADES.forEach((u,idx)=>{const y=185+idx*95,lvl=this.upg[u.id],maxed=lvl>=u.max,cost=upgCost(u,lvl);c.add(this.add.rectangle(W/2,y+18,486,84,0x14304a,.9).setStrokeStyle(2,0x2f597d));c.add(this.add.text(50,y-10,`${u.name}  Lv.${lvl}/${u.max}`,{fontSize:'20px',fontStyle:'900',color:'#fff'}));c.add(this.add.text(50,y+20,u.desc,{fontSize:'15px',color:'#bfe8ff'}));const afford=this.settings.gems>=cost,btn=this.add.text(W-52,y+8,maxed?'MAX':`${cost}💎`,{fontSize:'19px',fontStyle:'900',color:maxed?'#9fb3c8':(afford?'#102238':'#9fb3c8'),backgroundColor:maxed?'#33465a':(afford?'#ffe082':'#33465a'),padding:{x:12,y:9}}).setOrigin(1,.5);c.add(btn);if(!maxed&&afford){btn.setInteractive();btn.on('pointerdown',e=>{this._uiTap=true;e.event?.stopPropagation?.();const cc=upgCost(u,this.upg[u.id]);if(this.settings.gems<cc)return;this.settings.gems-=cc;this.upg[u.id]++;this.settings.upgrades[u.id]=this.upg[u.id];save(this.settings);this.sound.coin();this.applyUpgrades();this.showShop();this.shopBtn?.setText(`💎 영구 강화 (보유 ${this.settings.gems})`);})}});const close=this.add.text(W/2,700,'✖ 닫기',{fontSize:'24px',fontStyle:'900',color:'#102238',backgroundColor:'#ffe082',padding:{x:34,y:15}}).setOrigin(.5).setInteractive();close.on('pointerdown',e=>{this._uiTap=true;e.event?.stopPropagation?.();this.shopOverlay?.destroy();this.shopOverlay=null});c.add(close)}
   applyUpgrades(){const perk=LOOKS[this.settings.selected]?.perk;this.boltDmg=4+this.upg.power*3+(perk==='power'?4:0);this.perkRate=perk==='rate';this.perkRate2=perk==='rate2';this.bombDmg=7+this.upg.bomb*3+(perk==='bomb'?4:0);this.bombR=118+this.upg.bomb*16+(perk==='bomb'?30:0);this.coinMult=1+this.upg.coin*0.25+(perk==='gold'?1:0);const newMax=100+this.upg.basehp*30+(perk==='hp'?40:0),add=newMax-this.baseMax;this.baseMax=newMax;if(add>0)this.baseHp+=add;this.updateHud()}
   // 전직 중에는 setJobLook()이 전용 텍스처 + clearTint()로 외형을 잡아둔다.
