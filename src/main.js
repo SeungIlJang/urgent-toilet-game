@@ -146,7 +146,19 @@ class SoundKit {
 class GameScene extends Phaser.Scene {
   constructor(){super('urgent-defense')}
   preload(){/* 외부 에셋 없음: 모든 텍스처는 코드로 생성(OTA 단일 HTML) */}
+  // Phaser 는 텍스트를 그릴 캔버스 높이를 폰트 메트릭만 보고 잡는다. 한글 + 굵은 글꼴(bold/900) 조합에서는
+  // 실제 글리프가 그 메트릭 위로 삐져나와 윗부분이 싹둑 잘린다('몰려오는 적을…', '화면을 탭해…', '레벨 업!' 등).
+  // 텍스트가 110곳이라 하나씩 고치는 대신, 생성 시점에 글꼴 크기 비례 여백을 자동으로 끼워 넣는다.
+  // 위·아래에 같은 양을 넣어야 origin(.5) 텍스트의 화면상 위치가 그대로 유지된다.
+  patchTextPadding(){
+    if(this._textPatched)return;this._textPatched=true;
+    const make=this.add.text.bind(this.add);
+    this.add.text=(x,y,txt,style={})=>{
+      const size=parseInt(style.fontSize,10)||16,extra=Math.ceil(size*0.35),p=style.padding,
+        base=k=>typeof p==='number'?p:(p?.[k]??p?.[(k==='top'||k==='bottom')?'y':'x']??0);
+      return make(x,y,txt,{...style,padding:{left:base('left'),right:base('right'),top:base('top')+extra,bottom:base('bottom')+extra}})};}
   create(data={}) {
+    this.patchTextPadding();
     this.settings=load();this.settings.unlocked||=['classic'];this.settings.selected||='classic';this.settings.upgrades||={};
     // 지갑 두 개: 💎보석은 영구(영구 강화·스킨·무기 해금), 🪙코인은 그 판에서만 쓰고 사라진다(무기 강화).
     // 예전엔 코인 하나로 둘 다 사서, 죽을 때마다 전부 0이 되고 출석 보상도 의미가 없었다.
