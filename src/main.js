@@ -26,6 +26,11 @@ if (Capacitor.isNativePlatform()) {
   globalThis.caches?.keys?.().then(keys => Promise.all(keys.map(key => caches.delete(key))));
 }
 
+// 캐릭터 스프라이트. 파일명이 그대로 텍스처 키가 된다(e_germ.png → 'e_germ').
+// vite 가 base64 로 인라인하므로 단일 HTML 안에 들어가고, OTA·APK 양쪽에서 추가 설정이 필요 없다.
+// 폴더가 비어 있으면 ART 가 {} 가 되고, 예전처럼 코드로 그린 텍스처가 그대로 쓰인다.
+const ART = import.meta.glob('./assets/*.png', { eager: true, query: '?url', import: 'default' });
+const ART_SCALE = 0.5; // 스프라이트를 게임 기준의 2배 해상도로 받았으므로 절반 크기로 그린다
 const W = 540, H = 960, BASE_LINE = 812, SAVE_KEY = 'urgentDefenseV1';
 // 버전은 package.json 하나만 고치면 되도록 vite define(__APP_VERSION__)으로 주입한다.
 const APP_VERSION = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : 'dev';
@@ -117,20 +122,21 @@ const THEMES = [
   { sky: 0x2c3e70, ground: 0x22304f, edge: 0x121a30 },
   { sky: 0x0b1026, ground: 0x0e1430, edge: 0x060a1c },
 ];
-// Enemy archetypes reuse the props spritesheet (0 cone,1 barrier,2 puddle,4 coffee).
+// 전부 noSpin: 새 스프라이트는 모든 적에 얼굴이 있어서, 회전시키면 얼굴이 뒤집혀 보인다.
+// (코드로 그리던 시절엔 둥근 적만 돌려서 티가 덜 났다.)
 const ENEMIES = {
-  germ:  { tex:'e_germ',  tint:0x7ad64a, scale:.469, r:25, hp:3,  speed:58,  dmg:7,  reward:2 },
-  spore: { tex:'e_spore', tint:0x4dd2c0, scale:.344, r:19, hp:5,  speed:92,  dmg:8,  reward:3, weave:2.6, weavePer:150 },
+  germ:  { tex:'e_germ',  tint:0x7ad64a, scale:.469, r:25, hp:3,  speed:58,  dmg:7,  reward:2, noSpin:true },
+  spore: { tex:'e_spore', tint:0x4dd2c0, scale:.344, r:19, hp:5,  speed:92,  dmg:8,  reward:3, weave:2.6, weavePer:150, noSpin:true },
   fly:   { tex:'e_fly',   tint:0xff4d4d, scale:.406, r:22, hp:4,  speed:120, dmg:6,  reward:3, weave:1.4, weavePer:220, noSpin:true },
   paper: { tex:'e_paper', tint:0xdfe6ee, scale:.563, r:30, hp:15, speed:40,  dmg:16, reward:5, noSpin:true },
   fart:  { tex:'e_fart',  tint:0x9fce6a, scale:.5,   r:27, hp:6,  speed:46,  dmg:9,  reward:3, weave:3.0, weavePer:260, noSpin:true },
-  slime: { tex:'e_slime', tint:0xb06bff, scale:.453, r:25, hp:9,  speed:48,  dmg:12, reward:5, split:true },
+  slime: { tex:'e_slime', tint:0xb06bff, scale:.453, r:25, hp:9,  speed:48,  dmg:12, reward:5, split:true, noSpin:true },
   roach: { tex:'e_roach', tint:0x8a5a2c, scale:.641, r:35, hp:20, speed:30,  dmg:22, reward:8, noSpin:true },
   truck: { tex:'e_truck', tint:0x9c7a34, scale:.72,  r:40, hp:30, speed:22,  dmg:26, reward:12, noSpin:true },
-  roll:    { tex:'e_roll',        tint:0xf0f2f6, scale:.453, r:25, hp:8,  speed:60,  dmg:9,  reward:3 },
+  roll:    { tex:'e_roll',        tint:0xf0f2f6, scale:.453, r:25, hp:8,  speed:60,  dmg:9,  reward:3, noSpin:true },
   plunger: { tex:'e_plunger',     tint:0xc0392b, scale:.469, r:26, hp:10, speed:112, dmg:14, reward:4, noSpin:true },
   sink:    { tex:'e_sink',        tint:0xdfe6ee, scale:.688, r:38, hp:28, speed:26,  dmg:24, reward:11, noSpin:true },
-  soap:    { tex:'e_soap',        tint:0x53c9b6, scale:.359, r:20, hp:5,  speed:100, dmg:8,  reward:3, weave:3.0, weavePer:200 },
+  soap:    { tex:'e_soap',        tint:0x53c9b6, scale:.359, r:20, hp:5,  speed:100, dmg:8,  reward:3, weave:3.0, weavePer:200, noSpin:true },
   mosquito:{ tex:'e_mosquito',    tint:0xff4d4d, scale:.344, r:19, hp:4,  speed:138, dmg:7,  reward:3, weave:1.8, weavePer:170, noSpin:true },
   tissuer: { tex:'e_tissue_red',  tint:0xff5c6e, scale:.406, r:22, hp:6,  speed:116, dmg:9,  reward:3, noSpin:true },
   tissueb: { tex:'e_tissue_blue', tint:0x5c8cff, scale:.438, r:24, hp:16, speed:42,  dmg:12, reward:5, noSpin:true },
@@ -145,7 +151,9 @@ class SoundKit {
 
 class GameScene extends Phaser.Scene {
   constructor(){super('urgent-defense')}
-  preload(){/* 외부 에셋 없음: 모든 텍스처는 코드로 생성(OTA 단일 HTML) */}
+  // src/assets 의 PNG 를 전부 등록한다. 여기서 키가 만들어지면
+  // makeEnemyTextures()/makePoopTexture() 의 'textures.exists' 가드가 코드 드로잉을 알아서 건너뛴다.
+  preload(){for(const [path,url] of Object.entries(ART))this.load.image(path.split('/').pop().replace('.png',''),url)}
   // Phaser 는 텍스트를 그릴 캔버스 높이를 폰트 메트릭만 보고 잡는다. 한글 + 굵은 글꼴(bold/900) 조합에서는
   // 실제 글리프가 그 메트릭 위로 삐져나와 윗부분이 싹둑 잘린다('몰려오는 적을…', '화면을 탭해…', '레벨 업!' 등).
   // 텍스트가 110곳이라 하나씩 고치는 대신, 생성 시점에 글꼴 크기 비례 여백을 자동으로 끼워 넣는다.
@@ -326,7 +334,7 @@ class GameScene extends Phaser.Scene {
     // 궁수 — green headband + feather
     make('poop_archer',g=>{g.fillStyle(0x2f9d55,1);g.fillRect(cx-64,76,128,16);g.fillStyle(0x257c43,1);g.fillRect(cx-64,86,128,6);g.fillStyle(0x2f9d55,1);g.fillTriangle(cx-64,76,cx-86,82,cx-64,92);g.fillStyle(0x8be36a,1);g.fillTriangle(cx+52,74,cx+60,24,cx+72,72);g.fillStyle(0x2f9d55,1);g.fillRect(cx+58,40,4,36)});
   }
-  createHero(){this.makePoopTexture();this.heroX=W/2;this.turretBase=this.add.circle(this.heroX,BASE_LINE-6,26,0x3a3350).setDepth(6);this.turret=this.add.rectangle(this.heroX,BASE_LINE-22,18,46,0x5a5570).setOrigin(.5,1).setStrokeStyle(3,0x2a2740).setDepth(7);this.hero=this.add.sprite(this.heroX,BASE_LINE-2,'poop',0).setScale(.5).setOrigin(.5,.92).setDepth(8);this.hero.setTint(LOOKS[this.settings.selected]?.tint||0xffffff);this.muzzle=this.add.circle(this.heroX,BASE_LINE-70,0,0xfff1a8,0).setDepth(10);this.aura=this.add.ellipse(this.heroX,BASE_LINE-30,98,132,0xffef99,0).setDepth(7).setVisible(false);this.auraOn=false;this.hairFx=null}
+  createHero(){this.makePoopTexture();this.heroX=W/2;this.turretBase=this.add.circle(this.heroX,BASE_LINE-6,26,0x3a3350).setDepth(6);this.turret=this.add.rectangle(this.heroX,BASE_LINE-22,18,46,0x5a5570).setOrigin(.5,1).setStrokeStyle(3,0x2a2740).setDepth(7);this.hero=this.add.sprite(this.heroX,BASE_LINE-2,'poop',0).setScale(.5*ART_SCALE).setOrigin(.5,.92).setDepth(8);this.hero.setTint(LOOKS[this.settings.selected]?.tint||0xffffff);this.muzzle=this.add.circle(this.heroX,BASE_LINE-70,0,0xfff1a8,0).setDepth(10);this.aura=this.add.ellipse(this.heroX,BASE_LINE-30,98,132,0xffef99,0).setDepth(7).setVisible(false);this.auraOn=false;this.hairFx=null}
   setJobLook(cls,big){const tex={warrior:'poop_warrior',mage:'poop_mage',archer:'poop_archer'}[cls]||'poop',color={warrior:0xff7b4a,mage:0xb46bff,archer:0x4ad06a}[cls]||0xffe14d;this.hero.setTexture(tex);this.hero.clearTint();this.jobColor=color;this.auraBig=big;this.aura.setVisible(true).setFillStyle(color,.35);this.auraOn=true;this.hairFx?.destroy();this.hairFx=null;if(big){const c=this.hairFx=this.add.container(this.heroX,BASE_LINE-128).setDepth(9),n=7,col=0xffe14d;for(let i=0;i<n;i++){const dx=(i-(n-1)/2)*9;c.add(this.add.triangle(dx,0,-6,10,6,10,0,-28,col).setStrokeStyle(2,0xffffff,.55))}}}
   nearestEnemy(){let best=null,bd=1e9;for(const e of this.enemies){if(!e.active||e.y<8)continue;const d=Phaser.Math.Distance.Between(this.heroX,BASE_LINE-40,e.x,e.y);if(d<bd){bd=d;best=e}}return best}
   createHud(){
@@ -430,15 +438,15 @@ class GameScene extends Phaser.Scene {
   updateHud(){this.scoreText.setText(`점수 ${this.score}`);this.waveText.setText(`WAVE ${this.wave}`);this.coinText.setText(`🪙 ${this.coins}`);const r=Phaser.Math.Clamp(this.baseHp/this.baseMax,0,1);this.hpBar.width=296*r;this.hpBar.setFillStyle(r>.5?0x37c871:r>.25?0xffb020:0xff5470);this.levelText?.setText('Lv.'+this.level);if(this.xpBar)this.xpBar.width=296*Phaser.Math.Clamp(this.xp/this.xpNext,0,1);this.comboText?.setText(this.streak>=3?`🔥 연속 ${this.streak}`:'');this.missionText?.setText('오늘 '+MISSIONS.map(m=>`${this.settings.completed?.[m.id]?'✓':Math.min(m.target,this.missionValue(m))+'/'+m.target}`).join(' · '))}
   // ---------- gameplay ----------
   addBars(e,w){e.barBg=this.add.rectangle(e.x,e.y,w+2,6,0x000000,.55).setDepth(8).setVisible(false);e.bar=this.add.rectangle(e.x,e.y,w,4,0x37c871).setOrigin(.5).setDepth(9).setVisible(false);e.barW=w}
-  spawnEnemy(){const w=this.wave,pool=['germ','germ','spore'];if(w>=2)pool.push('fly','paper','roll','soap','tissuer');if(w>=3)pool.push('slime','fart','truck','mosquito','tissueb','plunger');if(w>=4)pool.push('roach','fly','sink','soap','mosquito');if(w>=6)pool.push('roach','slime','sink','plunger','tissuer');const key=Phaser.Utils.Array.GetRandom(pool),spec=ENEMIES[key],hp=Math.round(spec.hp*enemyHpMul(w)),e=this.add.sprite(Phaser.Math.Between(70,W-70),SPAWN_TOP,spec.tex).setScale(spec.scale).setDepth(7);e.spec=spec;e.tintColor=spec.tint;e.hp=hp;e.maxHp=hp;e.baseScale=spec.scale;e.speed=spec.speed*enemySpeedMul(w);e.seed=Phaser.Math.Between(0,628)/100;e.spin=spec.noSpin?0:Phaser.Math.Between(-14,14)/10;this.addBars(e,38);this.enemies.push(e);if(key==='truck')this.warnEntrance('⚠️ 정화조차 출현!','#ffd24a')}
+  spawnEnemy(){const w=this.wave,pool=['germ','germ','spore'];if(w>=2)pool.push('fly','paper','roll','soap','tissuer');if(w>=3)pool.push('slime','fart','truck','mosquito','tissueb','plunger');if(w>=4)pool.push('roach','fly','sink','soap','mosquito');if(w>=6)pool.push('roach','slime','sink','plunger','tissuer');const key=Phaser.Utils.Array.GetRandom(pool),spec=ENEMIES[key],hp=Math.round(spec.hp*enemyHpMul(w)),e=this.add.sprite(Phaser.Math.Between(70,W-70),SPAWN_TOP,spec.tex).setScale(spec.scale*ART_SCALE).setDepth(7);e.spec=spec;e.tintColor=spec.tint;e.hp=hp;e.maxHp=hp;e.baseScale=spec.scale*ART_SCALE;e.speed=spec.speed*enemySpeedMul(w);e.seed=Phaser.Math.Between(0,628)/100;e.spin=spec.noSpin?0:Phaser.Math.Between(-14,14)/10;this.addBars(e,38);this.enemies.push(e);if(key==='truck')this.warnEntrance('⚠️ 정화조차 출현!','#ffd24a')}
   warnEntrance(label,color){const now=this.time.now;if(now-(this._lastWarnEnt||0)<2200)return;this._lastWarnEnt=now;this._slowUntil=now+450;this.sound.warn?.();this.sound.vibrate?.([40,30,40]);if(!this.reducedMotion){this.cameras.main.flash(200,255,60,60);this.cameras.main.shake(200,.006)}const t=this.add.text(W/2,220,label,{fontSize:'30px',fontStyle:'900',color:color||'#ff3b6b',stroke:'#2a0a12',strokeThickness:7}).setOrigin(.5).setDepth(30);(this.liveBanners||=[]).push(t);this.tweens.add({targets:t,scale:{from:1.3,to:1},duration:250,ease:'Back.easeOut'});this.tweens.add({targets:t,alpha:0,y:188,delay:750,duration:400,onComplete:()=>{const i=this.liveBanners.indexOf(t);if(i>=0)this.liveBanners.splice(i,1);t.destroy()}})}
   // kind: 'mini'(첫 보스) · 'big'(5웨이브마다) · 'septic'(10웨이브마다). balance.js 의 bossKind() 가 정한다.
   spawnBoss(kind){const w=this.wave,septic=kind==='septic',big=kind==='big'||septic;
     const tex=septic?'e_boss_septic':kind==='big'?'e_bossbig':'e_boss',sc=septic?.92:kind==='big'?.8:.58;
     const hp=septic?140+w*30:kind==='big'?90+w*22:28+w*12,tint=septic?0x9c7a34:kind==='big'?0x7a1fff:0xe23bb0;
-    const e=this.add.sprite(W/2,-70,tex).setScale(sc).setDepth(7);
+    const e=this.add.sprite(W/2,-70,tex).setScale(sc*ART_SCALE).setDepth(7);
     e.spec={dmg:septic?60:kind==='big'?46:26,reward:septic?70+w*4:kind==='big'?45+w*3:16+w*2,r:septic?74:kind==='big'?62:46};
-    e.tintColor=tint;e.hp=hp;e.maxHp=hp;e.baseScale=sc;e.speed=septic?26+w*0.5:kind==='big'?30+w*0.7:24+w*0.6;e.boss=true;e.big=big;e.kind=kind;
+    e.tintColor=tint;e.hp=hp;e.maxHp=hp;e.baseScale=sc*ART_SCALE;e.speed=septic?26+w*0.5:kind==='big'?30+w*0.7:24+w*0.6;e.boss=true;e.big=big;e.kind=kind;
     this.addBars(e,septic?104:kind==='big'?92:62);this.enemies.push(e);
     this.warnEntrance(septic?'👑 웅장한 정화조 강림!':kind==='big'?'⚠️ 대형 보스 접근!':'⚠️ 보스 접근!',septic?'#ffd24a':'#ff3b6b')}
   fireWeapon(a){const best=this.nearestEnemy();if(!best)return;const n=a.bolts+(this.runBolts||0);for(let k=0;k<n;k++){const off=n>1?((k/(n-1))-0.5)*(a.wp.spread||0.24):0;this.fireBolt(a,best,off)}}
@@ -446,7 +454,7 @@ class GameScene extends Phaser.Scene {
   hitEnemy(e,dmg,x,y){e.hp-=dmg;e.setTintFill(0xffffff);e.y-=e.boss?1:5;this.time.delayedCall(55,()=>{if(e.active)e.clearTint()});if(!this.reducedMotion){this.fx.emitParticleAt(x||e.x,y||e.y,2);if(e.active&&e.hp>0)this.tweens.add({targets:e,baseScale:{from:e.baseScale*1.16,to:e.baseScale},duration:110})}if(e.hp<=0)this.killEnemy(e)}
   killEnemy(e){const i=this.enemies.indexOf(e);if(i>=0)this.enemies.splice(i,1);e.bar?.destroy();e.barBg?.destroy();this.kills++;this.streak++;this.streakAt=this.time.now;// 보스가 5웨이브마다로 줄어든 만큼, 보스 1마리의 경험치·점수를 올려 성장 속도를 맞춘다.
     this.gainXp(e.boss?(e.kind==='septic'?14:e.kind==='big'?10:6):1);const mult=1+Math.floor(this.streak/5);
-    this.score+=(e.boss?(e.kind==='septic'?320:e.kind==='big'?200:70):10)*mult;const c=this.addCoin(e.spec.reward);if(this.jobHeal)this.baseHp=Math.min(this.baseMax,this.baseHp+2);this.sound.kill();if(!this.reducedMotion){this.fx.emitParticleAt(e.x,e.y,e.boss?(e.big?30:18):12);this.killPop(e.x,e.y,e.tintColor||0xffffff);if(e.boss||this.streak%4===0)this.cameras.main.shake(70,e.boss?0.006:0.0028)}this.floatText(e.x,e.y-8,e.boss?`보스 처치! +🪙${c}`:`+🪙${c}`,e.boss?0xffd24a:0x9be7a0);if(this.streak>0&&this.streak%10===0){this.floatText(this.heroX,BASE_LINE-120,`🔥 ${this.streak}연속!`,0xff9e3d);this.punch(1.04)}if(e.boss){this.punch(e.big?1.07:1.04);if(e.big&&!this.reducedMotion)this.cameras.main.flash(180,255,240,150)}if(e.spec.split){const sp=ENEMIES.germ;for(let k=0;k<2;k++){const me=this.add.sprite(e.x+(k?22:-22),e.y,sp.tex).setScale(sp.scale*.66).setDepth(7);me.spec=sp;me.tintColor=sp.tint;me.hp=3;me.maxHp=3;me.baseScale=sp.scale*.66;me.speed=120;me.seed=Phaser.Math.Between(0,628)/100;me.spin=Phaser.Math.Between(-30,30)/10;this.addBars(me,26);this.enemies.push(me)}}e.destroy();this.updateHud()}
+    this.score+=(e.boss?(e.kind==='septic'?320:e.kind==='big'?200:70):10)*mult;const c=this.addCoin(e.spec.reward);if(this.jobHeal)this.baseHp=Math.min(this.baseMax,this.baseHp+2);this.sound.kill();if(!this.reducedMotion){this.fx.emitParticleAt(e.x,e.y,e.boss?(e.big?30:18):12);this.killPop(e.x,e.y,e.tintColor||0xffffff);if(e.boss||this.streak%4===0)this.cameras.main.shake(70,e.boss?0.006:0.0028)}this.floatText(e.x,e.y-8,e.boss?`보스 처치! +🪙${c}`:`+🪙${c}`,e.boss?0xffd24a:0x9be7a0);if(this.streak>0&&this.streak%10===0){this.floatText(this.heroX,BASE_LINE-120,`🔥 ${this.streak}연속!`,0xff9e3d);this.punch(1.04)}if(e.boss){this.punch(e.big?1.07:1.04);if(e.big&&!this.reducedMotion)this.cameras.main.flash(180,255,240,150)}if(e.spec.split){const sp=ENEMIES.germ;for(let k=0;k<2;k++){const me=this.add.sprite(e.x+(k?22:-22),e.y,sp.tex).setScale(sp.scale*.66*ART_SCALE).setDepth(7);me.spec=sp;me.tintColor=sp.tint;me.hp=3;me.maxHp=3;me.baseScale=sp.scale*.66*ART_SCALE;me.speed=120;me.seed=Phaser.Math.Between(0,628)/100;me.spin=Phaser.Math.Between(-30,30)/10;this.addBars(me,26);this.enemies.push(me)}}e.destroy();this.updateHud()}
   throwBomb(x,y){if(this.time.now<this.bombReadyAt)return;if(this.bombTip){this.bombTip.destroy();this.bombTip=null;this.settings.seenBombTip=true;this.persistSettings()}this.bombReadyAt=this.time.now+this.bombCd;this.bombsUsed++;this.explode(x,y);this.updateHud()}
   baseHit(e){const i=this.enemies.indexOf(e);if(i>=0)this.enemies.splice(i,1);e.bar?.destroy();e.barBg?.destroy();this.baseHp-=e.spec.dmg;this.streak=0;this.sound.hurt();this.sound.vibrate([50,40,50]);if(!this.reducedMotion){this.cameras.main.shake(180,.014);this.cameras.main.flash(140,255,80,80)}this.floatText(this.base.x,BASE_LINE+10,`-${e.spec.dmg}`,0xff5470);e.destroy();this.updateHud();if(this.baseHp<=0)this.gameOver()}
   startWave(){this.wave++;this.state='playing';this.waveStartCoins=this.coins;const kind=bossKind(this.wave);this.toSpawn=waveSpawnCount(this.wave);this.spawnGap=waveSpawnGap(this.wave);this.lastSpawn=this.time.now;
@@ -601,11 +609,11 @@ class GameScene extends Phaser.Scene {
       hit.on('pointerdown',e=>{this._uiTap=true;e.event?.stopPropagation?.();this.startGame()});this.overlay.add(hit)}
     this.overlay.add(this.add.text(W/2,726,'(아무 곳이나 탭해도 시작)',{fontSize:'12px',color:'#7f9fb5'}).setOrigin(.5));
     // 주인공을 밝게 보여준다. 예전엔 어두운 오버레이 뒤에 가려 실루엣으로만 보였다.
-    const hero=this.add.image(W/2,818,'poop').setScale(.56);this.overlay.add(hero);
+    const hero=this.add.image(W/2,818,'poop').setScale(.56*ART_SCALE);this.overlay.add(hero);
     this.tweens.add({targets:hero,y:810,duration:1400,yoyo:true,repeat:-1,ease:'Sine.easeInOut'});
     // 적들이 화장실로 다가오는 구도. 주인공(x 203~337)은 피해서 양옆에 둔다.
     [['e_germ',100,852,.38],['e_slime',440,846,.38]].forEach(([tex,x,y,sc],i)=>{
-      const e=this.add.image(x,y,tex).setScale(sc);this.overlay.add(e);
+      const e=this.add.image(x,y,tex).setScale(sc*ART_SCALE);this.overlay.add(e);
       this.tweens.add({targets:e,y:y+14,duration:1500+i*340,yoyo:true,repeat:-1,ease:'Sine.easeInOut'})});
     this.overlay.add(this.add.text(W/2,906,`v${APP_VERSION}`,{fontSize:'12px',color:'#9bb6c8'}).setOrigin(.5));
     // 메인 한가운데 붉은 버튼으로 두면 시작 버튼 바로 아래라 잘못 누르기 쉽다.
@@ -642,7 +650,7 @@ class GameScene extends Phaser.Scene {
     const c=this.endOverlay=this.add.container(0,0).setDepth(30);
     c.add(this.add.image(W/2,H/2,'titlebg').setDisplaySize(W,H).setInteractive());
     // 시무룩한 아기 변기. 푸른 기운을 살짝 입히고 눈물 방울을 띄운다.
-    const hero=this.add.image(W/2,150,'poop').setScale(.44).setTint(0xcfdcf2);c.add(hero);
+    const hero=this.add.image(W/2,150,'poop').setScale(.44*ART_SCALE).setTint(0xcfdcf2);c.add(hero);
     this.tweens.add({targets:hero,y:156,duration:1600,yoyo:true,repeat:-1,ease:'Sine.easeInOut'});
     [[W/2-58,158],[W/2+60,166]].forEach(([tx,ty],i)=>{const d=this.add.text(tx,ty,'💧',{fontSize:'20px'}).setOrigin(.5);c.add(d);
       this.tweens.add({targets:d,y:ty+22,alpha:{from:.9,to:0},duration:1400,repeat:-1,delay:i*500})});
