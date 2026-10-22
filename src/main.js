@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { Capacitor } from '@capacitor/core';
-import { AdMob, RewardAdPluginEvents } from '@capacitor-community/admob';
+import { AdMob, RewardAdPluginEvents, BannerAdPosition, BannerAdSize } from '@capacitor-community/admob';
 import './style.css';
 import { waveSpawnCount, waveSpawnGap, enemyHpMul, enemySpeedMul, bossKind, SPAWN_TOP, RUSH_FROM, RUSH_MUL,
   DOUBLE_FROM, DOUBLE_PCT, TRIPLE_FROM, TRIPLE_PCT } from './balance.js';
@@ -15,9 +15,12 @@ const AD_MODE = USE_TEST_ADS ? 'ad-mode:test' : 'ad-mode:real';
 if (typeof window !== 'undefined') window.__AD_MODE__ = AD_MODE;
 const ADMOB_REWARD_ID = 'ca-app-pub-9017259597860535/5418809176';
 const ADMOB_TEST_REWARD_ID = 'ca-app-pub-3940256099942544/5224354917';
-// 전면광고(게임오버 다시도전 3회당 1번). ⚠️ 실유닛 ID는 AdMob에서 "전면" 광고단위 생성 후 교체.
-const ADMOB_INTER_ID = '';   // TODO: 실제 전면 광고단위 ID
+// 전면광고(게임오버 다시도전 3회당 1번).
+const ADMOB_INTER_ID = 'ca-app-pub-9017259597860535/6246963624';
 const ADMOB_TEST_INTER_ID = 'ca-app-pub-3940256099942544/1033173712';
+// 하단 배너. 시작·게임오버 화면에서만 띄우고 플레이 중에는 내린다(하단 조작 버튼을 가리므로).
+const ADMOB_BANNER_ID = 'ca-app-pub-9017259597860535/3698103162';
+const ADMOB_TEST_BANNER_ID = 'ca-app-pub-3940256099942544/6300978111';
 import { RunDiagnostics } from './run-diagnostics.js';
 
 // Never register a service worker. In an APK, purge leftovers from older builds.
@@ -475,7 +478,7 @@ class GameScene extends Phaser.Scene {
     this.time.delayedCall(1150,()=>{if(this.state==='intermission')this.startWave()})}
   // ---------- flow ----------
   startGame(){if(this.state==='over')return this.scene.restart({autoStart:true});this.beginPlay()}
-  beginPlay(){this.setHudVisible(true);this.shopOverlay?.destroy();this.shopOverlay=null;this.charOverlay?.destroy();this.charOverlay=null;this.lbOverlay?.destroy();this.lbOverlay=null;this.weaponOverlay?.destroy();this.weaponOverlay=null;this.overlay?.destroy();this.overlay=null;this.diagnostics.start();this.diagnosticTick||=this.time.addEvent({delay:100,loop:true,callback:()=>this.diagnostics.sample(this.wave,this.state==='playing'?'playing':this.state,false,this.score+this.kills*0.001+0.001)});this.settings.seenTutorial=true;this.persistSettings();this.pickSpecial();this.startWave()}
+  beginPlay(){this.setHudVisible(true);this.hideBannerAd();this.shopOverlay?.destroy();this.shopOverlay=null;this.charOverlay?.destroy();this.charOverlay=null;this.lbOverlay?.destroy();this.lbOverlay=null;this.weaponOverlay?.destroy();this.weaponOverlay=null;this.overlay?.destroy();this.overlay=null;this.diagnostics.start();this.diagnosticTick||=this.time.addEvent({delay:100,loop:true,callback:()=>this.diagnostics.sample(this.wave,this.state==='playing'?'playing':this.state,false,this.score+this.kills*0.001+0.001)});this.settings.seenTutorial=true;this.persistSettings();this.pickSpecial();this.startWave()}
   pickSpecial(){this.special=SPECIALS[Math.floor(Math.random()*SPECIALS.length)];this.specialReadyAt=0;this.itemIcon?.setText(this.special.icon);this.itemLabel?.setText(this.special.name);this.itemBtn?.setFillStyle(this.special.color);this.banner('🎁 이번 판 아이템: '+this.special.name,'#59c2ff')}
   activateSpecial(){if(this.state!=='playing'||!this.special)return;if(this.time.now<this.specialReadyAt)return;this.specialReadyAt=this.time.now+this.special.cd;const id=this.special.id;this.sound.boom?.();this.punch(1.04);
     if(id==='rain'){for(let k=0;k<16;k++){const x=Phaser.Math.Between(40,W-40),b=this.add.circle(x,120,6,0x9ad0ff).setStrokeStyle(3,0xffffff,.8).setDepth(10);b.vx=0;b.vy=780;b.dmg=Math.max(2,Math.round(this.boltDmg*1.1));b.pierceLeft=1;this.bolts.push(b)}this.banner('🌧️ 총알비!','#59c2ff')}
@@ -500,7 +503,7 @@ class GameScene extends Phaser.Scene {
   // 최종 기록은 모달이 다시 적어주므로 HUD는 숨긴다.
   // 카운트다운 만료와 '그만할래요' 탭이 같은 프레임에 겹치면 declineRevive()가 두 번 돌아
   // 모달이 겹쳐 그려지고 랭킹에도 같은 기록이 두 번 올라갔다.
-  commitGameOver(){if(this.state==='over')return;this.state='over';this.setHudVisible(false);this.clearBanners();for(const b of this.bolts)b.destroy();this.bolts=[];for(const e of this.enemies){e.bar?.destroy();e.barBg?.destroy()}this.showEnd()}
+  commitGameOver(){if(this.state==='over')return;this.state='over';this.setHudVisible(false);this.showBannerAd();this.clearBanners();for(const b of this.bolts)b.destroy();this.bolts=[];for(const e of this.enemies){e.bar?.destroy();e.barBg?.destroy()}this.showEnd()}
   showReviveOffer(){this.state='dying';this.setHudVisible(false);this.clearBanners();this.sound.hurt?.();this.sound.vibrate?.([60,40,120]);
     if(!this.reducedMotion){this.cameras.main.shake(320,.018);this.cameras.main.flash(280,255,40,40);this.vignette.setAlpha(.55)}
     // pick a taunt that stings (near-miss / loss) → 간절함·오기 자극
@@ -528,7 +531,13 @@ class GameScene extends Phaser.Scene {
     giveup.on('pointerdown',e=>{this._uiTap=true;e.event?.stopPropagation?.();this.declineRevive()});ov.add(giveup)}
   declineRevive(){this.reviveTimer?.remove();this.reviveTimer=null;this.reviveOverlay?.destroy();this.reviveOverlay=null;this.commitGameOver()}
   watchAdRevive(){if(this.state!=='dying')return;this.reviveTimer?.remove();this.reviveTimer=null;this.reviveOverlay?.destroy();this.reviveOverlay=null;this.showAd(()=>this.doRevive(),()=>{this.commitGameOver();this.banner('광고를 끝까지 봐야 부활돼요','#ffd24a',170)})}
-  async initAdMob(){this.admobReady=false;try{if(Capacitor.isNativePlatform()){await AdMob.initialize({initializeForTesting:USE_TEST_ADS});this.admobReady=true}}catch(e){this.admobReady=false}}
+  async initAdMob(){this.admobReady=false;try{if(Capacitor.isNativePlatform()){await AdMob.initialize({initializeForTesting:USE_TEST_ADS});this.admobReady=true;if(this.state==='ready')this.showBannerAd()}}catch(e){this.admobReady=false}}
+  // 제스처 바(홈 인디케이터) 높이. index.html 의 viewport-fit=cover 가 있어야 값이 잡힌다.
+  // 이걸 margin 으로 넘기지 않으면 배너가 제스처 바와 겹친다.
+  bottomInset(){try{const p=document.createElement('div');p.style.cssText='position:fixed;left:0;bottom:0;width:0;height:env(safe-area-inset-bottom,0px);visibility:hidden;pointer-events:none';document.body.appendChild(p);const h=Math.round(p.getBoundingClientRect().height);p.remove();return h}catch(e){return 0}}
+  // 배너는 시작·게임오버 화면에서만. 플레이 중에는 하단 폭탄/아이템 버튼(y>848)을 가리므로 내린다.
+  async showBannerAd(){if(!(this.admobReady&&Capacitor.isNativePlatform())||this.bannerShown)return;const adId=USE_TEST_ADS?ADMOB_TEST_BANNER_ID:ADMOB_BANNER_ID;if(!adId)return;this.bannerShown=true;try{await AdMob.showBanner({adId,adSize:BannerAdSize.ADAPTIVE_BANNER,position:BannerAdPosition.BOTTOM_CENTER,margin:this.bottomInset()})}catch(e){this.bannerShown=false}}
+  async hideBannerAd(){if(!this.bannerShown)return;this.bannerShown=false;try{await AdMob.hideBanner()}catch(e){}}
   // 전면광고: 네이티브에서만, 실패 시 조용히 넘어감. 게임오버 "다시 도전" 3회당 1번.
   async showInterstitial(){if(!(this.admobReady&&Capacitor.isNativePlatform()))return;const adId=USE_TEST_ADS?ADMOB_TEST_INTER_ID:ADMOB_INTER_ID;if(!adId)return;try{await AdMob.prepareInterstitial({adId});await AdMob.showInterstitial()}catch(e){}}
   // Real AdMob rewarded ad on device; simulated overlay on web/dev or if the ad fails.
@@ -572,7 +581,7 @@ class GameScene extends Phaser.Scene {
     this.overlay.add(c);this.overlay.add(t);return c}
   dailyCheckIn(){const t=todayKey(),s=this.settings;if(s.lastAttend===t)return{reward:0,streak:s.attendStreak||1};const y=new Date(Date.now()-864e5).toLocaleDateString('sv-SE');s.attendStreak=(s.lastAttend===y?(s.attendStreak||0)+1:1);s.lastAttend=t;// 출석 보상은 💎로 준다. 예전엔 코인이라 다음 죽음에 전부 날아가 의미가 없었다.
     const reward=15+Math.min(s.attendStreak,7)*5;s.gems=(+s.gems||0)+reward;save(s);this.updateHud?.();return{reward,streak:s.attendStreak}}
-  showStart(){this.setHudVisible(false);this.overlay=this.add.container(0,0).setDepth(20);
+  showStart(){this.setHudVisible(false);this.showBannerAd();this.overlay=this.add.container(0,0).setDepth(20);
     // 밝은 파스텔 배경. 어두운 남색이라 본편(하늘색 세상)과 분위기가 정반대였고 아기 변기도 실루엣으로 묻혔다.
     this.overlay.add(this.add.image(W/2,H/2,'titlebg').setDisplaySize(W,H).setInteractive());
     // 두둥실 떠다니는 비눗방울
