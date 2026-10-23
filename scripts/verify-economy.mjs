@@ -81,13 +81,24 @@ const result = await page.evaluate(async () => {
   n.wave = 6; n.score = 5000; n.kills = 40; n.bombsUsed = 9;
   const beforeQuit = { gems: n.settings.gems, kills: n.settings.dailyProgress.kills || 0 };
   n.pauseGame();
-  const quitBtn = n.pauseOverlay.list.find(o => o.type === 'Text' && /처음으로/.test(o.text || ''));
-  const pauseNote = n.pauseOverlay.list.find(o => o.type === 'Text' && /그만둬도/.test(o.text || ''))?.text || '';
+  const quitBtn = n.pauseOverlay.getByName('처음 화면으로')?.getByName('action');
+  assertQuitButton(quitBtn);
+  function assertQuitButton(button) { if (!button) throw new Error('일시정지 화면의 처음 화면 버튼이 없습니다'); }
+  const pauseNote = n.pauseOverlay.list.find(o => o.type === 'Text' && /마쳐도/.test(o.text || ''))?.text || '';
   quitBtn.emit('pointerdown', {});
   await wait(1800);
   const afterQuit = JSON.parse(localStorage.getItem('urgentDefenseV1'));
 
+  // 재도전은 autoStart:true로 재시작한다. 이후 처음 화면 이동이 이 값을 물려받으면 안 된다.
+  const q = S(); q.beginPlay(); q.revived = true; q.gameOver(); q.startGame();
+  await wait(1800);
+  const retry = S(); retry.pauseGame();
+  retry.pauseOverlay.getByName('처음 화면으로').getByName('action').emit('pointerdown', {});
+  await wait(1800);
+  const retryHomeReady = S().state === 'ready' && S().wave === 0;
+
   return {
+    retryHomeReady,
     quit: {
       note: pauseNote,
       gemsGained: afterQuit.gems - beforeQuit.gems,
@@ -111,6 +122,7 @@ await browser.close();
 server.close();
 
 assert.ok(result.coinIsRunOnly, '🪙 획득이 💎까지 늘렸습니다 (지갑이 분리되지 않음)');
+assert.ok(result.retryHomeReady, '재도전 뒤 처음 화면으로 이동할 때 자동으로 새 판이 시작됐습니다');
 assert.ok(result.gemsAfterDeath > result.gemsAtStart, '사망 후 💎가 지급되지 않았습니다');
 assert.ok(result.upgradesKept, '영구 강화가 사망 시 초기화됐습니다');
 assert.ok(result.weaponLevelsReset, '무기 강화가 판을 넘어 유지됐습니다 (런 범위여야 함)');
@@ -124,7 +136,7 @@ assert.equal(result.nextRunWeaponLevels, 0, '다음 판 무기 강화가 0 이 �
 assert.ok(result.quit.gemsGained > 0, '일시정지 → 처음으로 로 나갈 때 💎가 지급되지 않았습니다');
 assert.equal(result.quit.killsRecorded, 40, '포기 시 일일 미션 처치 수가 저장되지 않았습니다');
 assert.ok(result.quit.waveRecorded >= 6, '포기 시 일일 미션 웨이브가 저장되지 않았습니다');
-assert.ok(/💎\d+/.test(result.quit.note), `일시정지 화면이 받게 될 💎를 알려주지 않습니다: "${result.quit.note}"`);
+assert.ok(/💎\s*\d+/.test(result.quit.note), `일시정지 화면이 받게 될 💎를 알려주지 않습니다: "${result.quit.note}"`);
 assert.equal(errors.length, 0, `페이지 오류: ${errors[0]}`);
 
 console.log(
