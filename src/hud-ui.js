@@ -1,4 +1,8 @@
 const INK='#264c57',MUTED='#65858d';
+// 상단 정보 패널의 높이와 아래 끝 y. 적은 화면 위(SPAWN_TOP=-40)에서 내려오므로 이 패널이
+// 그대로 적을 가린다 → 높이를 최소로 줄이고 반투명으로 깐다.
+// main.js 의 입력 데드존이 이 값을 그대로 쓰므로, 바꾸면 양쪽이 같이 움직인다.
+export const HUD_H=128, HUD_BOTTOM=12+HUD_H;
 function label(s,x,y,value,size=16,color=INK,origin=.0){return s.add.text(x,y,value,{fontFamily:'"Malgun Gothic", "Apple SD Gothic Neo", sans-serif',fontSize:size+'px',fontStyle:'bold',color}).setOrigin(origin,.5).setDepth(17)}
 function rounded(g,x,y,w,h,color,r=12,alpha=1){g.fillStyle(color,alpha);g.fillRoundedRect(x,y,w,h,Math.min(r,w/2,h/2))}
 function rail(g,x,y,w,h,fraction,color){g.clear();rounded(g,x,y,w,h,0xe3efec,h/2);const n=w*Math.max(0,Math.min(1,fraction));if(n>0)rounded(g,x,y,n,h,color,h/2)}
@@ -17,27 +21,29 @@ export function createHudMethods({W,BASE_LINE,MISSIONS}){
  createHud(){
   this.hudCamera=null;
   this._bombCardReady=undefined;this._itemCardKey=undefined;this.bombWasReady=false;this.itemWasReady=false;
+  // 패널은 적이 내려오는 길목을 덮는다. 높이를 188→128 로 줄이고 반투명(.72)으로 깔아,
+  // 뒤에 있는 적이 비쳐 보이게 한다. HUD_BOTTOM 은 입력 데드존과 맞춰야 한다.
   this.hudPanel=this.add.graphics().setDepth(14);
-  rounded(this.hudPanel,12,18,W-24,188,0x264c57,25,.10);
-  rounded(this.hudPanel,12,12,W-24,188,0xf4fffc,25,.98);
-  this.hudPanel.lineStyle(2,0xc7e7e3);this.hudPanel.strokeRoundedRect(12,12,W-24,188,25);
-  rounded(this.hudPanel,302,22,112,34,0xd8f3e9,14);
-  rounded(this.hudPanel,459,22,50,38,0xe8e0fa,14);
-  const title=label(this,30,39,'화장실 수비대',20);
-  this.waveText=label(this,358,39,'WAVE 1',16,INK,.5);
-  this.pauseButton=this.add.rectangle(484,41,50,42,0xffffff,.001).setInteractive({useHandCursor:true}).setDepth(19);
-  const pauseIcon=label(this,484,41,'Ⅱ',22,INK,.5);
-  this.scoreText=label(this,30,77,'점수 0',18);
-  this.coinText=label(this,W-33,77,'🪙 0',17,'#946b24',1);
-  this.comboText=label(this,276,77,'',15,'#bd7650',.5);
-  const baseLabel=label(this,30,113,'기지',13,MUTED);
+  rounded(this.hudPanel,12,18,W-24,HUD_H,0x264c57,22,.08);
+  rounded(this.hudPanel,12,12,W-24,HUD_H,0xf4fffc,22,.72);
+  this.hudPanel.lineStyle(2,0xc7e7e3,.9);this.hudPanel.strokeRoundedRect(12,12,W-24,HUD_H,22);
+  rounded(this.hudPanel,302,20,112,28,0xd8f3e9,13);
+  rounded(this.hudPanel,459,18,50,32,0xe8e0fa,13);
+  const title=label(this,30,34,'화장실 수비대',18);
+  this.waveText=label(this,358,34,'WAVE 1',15,INK,.5);
+  this.pauseButton=this.add.rectangle(484,34,50,36,0xffffff,.001).setInteractive({useHandCursor:true}).setDepth(19);
+  const pauseIcon=label(this,484,34,'Ⅱ',20,INK,.5);
+  this.scoreText=label(this,30,64,'점수 0',17);
+  this.coinText=label(this,W-33,64,'🪙 0',16,'#946b24',1);
+  this.comboText=label(this,276,64,'',14,'#bd7650',.5);
+  const baseLabel=label(this,30,88,'기지',12,MUTED);
   this.hpBar=this.add.graphics().setDepth(16);
-  this.healthValue=label(this,505,113,'100 / 100',12,MUTED,1);
-  this.levelText=label(this,30,143,'Lv.1',13,'#638a9e');
+  this.healthValue=label(this,505,88,'100 / 100',11,MUTED,1);
+  this.levelText=label(this,30,110,'Lv.1',12,'#638a9e');
   this.xpBar=this.add.graphics().setDepth(16);
-  this.xpValue=label(this,505,143,'성장',11,MUTED,1);
+  this.xpValue=label(this,505,110,'성장',10,MUTED,1);
   this.wepHud=this.add.container(0,0).setDepth(16);this.buildWeaponHud();
-  this.missionText=label(this,505,177,'',11,MUTED,1);
+  this.missionText=label(this,505,129,'',10,MUTED,1);
   this.bombBtn=this.add.graphics().setDepth(15);this.itemBtn=this.add.graphics().setDepth(15);
   this.bombArc=this.add.graphics().setDepth(16);this.itemArc=this.add.graphics().setDepth(16);
   this.bombIcon=label(this,W-62,876,'💣',29,INK,.5);
@@ -62,18 +68,18 @@ export function createHudMethods({W,BASE_LINE,MISSIONS}){
  buildWeaponHud(){
   if(!this.wepHud)return;this.wepHud.removeAll(true);
   (this.arsenal||[]).slice(0,1).forEach(a=>{
-   const g=this.add.graphics();rounded(g,26,162,163,29,0xe7f3ef,12);this.wepHud.add(g);
-   this.wepHud.add(this.add.circle(41,176,5,a.wp.color).setStrokeStyle(2,0xffffff));
-   const t=this.add.text(54,176,`${a.wp.name} · Lv.${a.lv}`,{fontSize:'11px',fontStyle:'bold',color:INK}).setOrigin(0,.5);this.wepHud.add(t);
+   const g=this.add.graphics();rounded(g,26,119,152,21,0xe7f3ef,10);this.wepHud.add(g);
+   this.wepHud.add(this.add.circle(38,129.5,4,a.wp.color).setStrokeStyle(2,0xffffff));
+   const t=this.add.text(48,129.5,`${a.wp.name} · Lv.${a.lv}`,{fontSize:'10px',fontStyle:'bold',color:INK}).setOrigin(0,.5);this.wepHud.add(t);
   });
   pin(this,this.wepHud);
  },
  updateHud(){
   this.scoreText.setText(`점수 ${this.score.toLocaleString()}`);this.waveText.setText(`WAVE ${this.wave}`);this.coinText.setText(`🪙 ${this.coins.toLocaleString()}`);
   const hp=Math.max(0,Math.min(1,this.baseHp/this.baseMax)),xp=Math.max(0,Math.min(1,this.xp/this.xpNext));
-  rail(this.hpBar,86,106,322,14,hp,hp>.5?0x77ceb2:hp>.25?0xf2c77b:0xee9eaa);
+  rail(this.hpBar,80,82,330,11,hp,hp>.5?0x77ceb2:hp>.25?0xf2c77b:0xee9eaa);
   this.healthValue.setText(`${Math.max(0,Math.ceil(this.baseHp))} / ${this.baseMax}`);
-  rail(this.xpBar,86,139,322,8,xp,0xb9a5e9);this.levelText.setText(`Lv.${this.level}`);this.xpValue.setText(`${Math.floor(xp*100)}%`);
+  rail(this.xpBar,80,106,330,7,xp,0xb9a5e9);this.levelText.setText(`Lv.${this.level}`);this.xpValue.setText(`${Math.floor(xp*100)}%`);
   this.comboText.setText(this.streak>=3?`✦ ${this.streak}연속!`:'');
   this.missionText.setText('오늘 '+MISSIONS.map(m=>this.settings.completed?.[m.id]?'✓':`${Math.min(m.target,this.missionValue(m))}/${m.target}`).join(' · '));
  },

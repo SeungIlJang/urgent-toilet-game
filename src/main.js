@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { SoundKit } from './sound-kit.js';
 import { createScreenMethods } from './ui-screens.js';
-import { createHudMethods } from './hud-ui.js';
+import { createHudMethods, HUD_BOTTOM } from './hud-ui.js';
 import { Capacitor } from '@capacitor/core';
 import { AdMob, RewardAdPluginEvents, BannerAdPosition, BannerAdSize } from '@capacitor-community/admob';
 import './style.css';
@@ -343,7 +343,7 @@ class GameScene extends Phaser.Scene {
   syncHud(){const want=this.state!=='ready'&&this.state!=='over'&&!this.overlayOpen()&&!this.reviveOverlay&&!this.adOverlay;
     if(want!==this._hudShown)this.setHudVisible(want)}
   rebuildArsenal(){const owned=this.settings.weaponsOwned||['basic'];let id=this.settings.weapon;if(!owned.includes(id))id=owned[0]||'basic';this.settings.weapon=id;const prev=(this.arsenal&&this.arsenal[0]&&this.arsenal[0].wp.id===id)?this.arsenal[0]:null,wp=WEAPONS.find(w=>w.id===id)||WEAPONS[0],lv=this.settings.weaponLevels[id]||0;this.arsenal=[{wp,lv,dmgMul:wp.dmg*(1+lv*0.10),bolts:wp.bolts+(id==='shotgun'?Math.floor(lv/3):0),pierce:wp.pierce+(id==='laser'?Math.floor(lv/2):0),miniR:72+(id==='grenade'?lv*10:0),fireFactor:wp.fire*((id==='basic'||id==='rapid')?(1-lv*0.04):1),lvlFireMul:prev?prev.lvlFireMul:1,lastFire:prev?prev.lastFire:0}];this.buildWeaponHud()}
-  createInput(){this.input.on('pointerdown',p=>{this.sound.unlock();if(this._uiTap){this._uiTap=false;return}if(this.overlayOpen())return;if(this.state==='ready'||this.state==='over')return;if(this.state!=='playing')return;if(p.y<206)return;if(p.x<118&&p.y>836){this.activateSpecial();return}if(p.x>W-118&&p.y>836)return;this.throwBomb(p.x,Phaser.Math.Clamp(p.y,120,BASE_LINE-20))});this.pauseButton.on('pointerdown',e=>{this._uiTap=true;e.event?.stopPropagation?.();this.state==='paused'?this.resumeGame():this.pauseGame()})}
+  createInput(){this.input.on('pointerdown',p=>{this.sound.unlock();if(this._uiTap){this._uiTap=false;return}if(this.overlayOpen())return;if(this.state==='ready'||this.state==='over')return;if(this.state!=='playing')return;if(p.y<HUD_BOTTOM+6)return;if(p.x<118&&p.y>836){this.activateSpecial();return}if(p.x>W-118&&p.y>836)return;this.throwBomb(p.x,Phaser.Math.Clamp(p.y,HUD_BOTTOM+6,BASE_LINE-20))});this.pauseButton.on('pointerdown',e=>{this._uiTap=true;e.event?.stopPropagation?.();this.state==='paused'?this.resumeGame():this.pauseGame()})}
   overlayOpen(){return !!(this.shopOverlay||this.charOverlay||this.lbOverlay||this.weaponOverlay||this.pauseOverlay||this.jobOverlay||this.upOverlay||this.resetOverlay)}
   addCoin(n){const amount=Math.max(1,Math.round(n*this.coinMult*(this.runCoinMul||1)));this.coins+=amount;return amount} // 🪙은 판 안에서만 쓰는 지갑이라 저장하지 않는다
   punch(s=1.04){if(this.reducedMotion)return;this.cameras.main.zoomTo(s,90,'Sine.easeInOut',true);this.time.delayedCall(120,()=>{if(this.state==='playing')this.cameras.main.zoomTo(1,110)})}
