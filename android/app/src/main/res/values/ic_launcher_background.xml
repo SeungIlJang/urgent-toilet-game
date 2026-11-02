@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_background">#FFFFFF</color>
+    <!-- 아이콘 하늘색. 적응형 아이콘은 @mipmap/ic_launcher_background 를 쓰므로
+         이 값은 스플래시 배경(values-v31/styles.xml)과 구형 폴백에만 쓰인다. -->
+    <color name="ic_launcher_background">#BEE9F4</color>
 </resources>

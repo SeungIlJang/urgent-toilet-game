@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- Android 12+ 는 values/styles.xml 의 android:background(@drawable/splash) 를 무시하고
+         시스템이 런처 아이콘을 가운데 띄운다. 배경색을 지정하지 않으면 흰 바탕이 깔려
+         아이콘의 하늘색 원과 경계가 보인다. 아이콘 배경과 같은 색으로 맞춘다. -->
+    <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/ic_launcher_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
+    </style>
+</resources>
