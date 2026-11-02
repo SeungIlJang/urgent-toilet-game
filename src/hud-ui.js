@@ -2,7 +2,7 @@ const INK='#264c57',MUTED='#65858d';
 // 상단 정보 패널의 높이와 아래 끝 y. 적은 화면 위(SPAWN_TOP=-40)에서 내려오므로 이 패널이
 // 그대로 적을 가린다 → 높이를 최소로 줄이고 반투명으로 깐다.
 // main.js 의 입력 데드존이 이 값을 그대로 쓰므로, 바꾸면 양쪽이 같이 움직인다.
-export const HUD_H=128, HUD_BOTTOM=12+HUD_H;
+export const HUD_H=104, HUD_BOTTOM=12+HUD_H;
 function label(s,x,y,value,size=16,color=INK,origin=.0){return s.add.text(x,y,value,{fontFamily:'"Malgun Gothic", "Apple SD Gothic Neo", sans-serif',fontSize:size+'px',fontStyle:'bold',color}).setOrigin(origin,.5).setDepth(17)}
 function rounded(g,x,y,w,h,color,r=12,alpha=1){g.fillStyle(color,alpha);g.fillRoundedRect(x,y,w,h,Math.min(r,w/2,h/2))}
 function rail(g,x,y,w,h,fraction,color){g.clear();rounded(g,x,y,w,h,0xe3efec,h/2);const n=w*Math.max(0,Math.min(1,fraction));if(n>0)rounded(g,x,y,n,h,color,h/2)}
@@ -27,23 +27,24 @@ export function createHudMethods({W,BASE_LINE,MISSIONS}){
   rounded(this.hudPanel,12,18,W-24,HUD_H,0x264c57,22,.08);
   rounded(this.hudPanel,12,12,W-24,HUD_H,0xf4fffc,22,.72);
   this.hudPanel.lineStyle(2,0xc7e7e3,.9);this.hudPanel.strokeRoundedRect(12,12,W-24,HUD_H,22);
-  rounded(this.hudPanel,302,20,112,28,0xd8f3e9,13);
-  rounded(this.hudPanel,459,18,50,32,0xe8e0fa,13);
-  const title=label(this,30,34,'화장실 수비대',18);
-  this.waveText=label(this,358,34,'WAVE 1',15,INK,.5);
-  this.pauseButton=this.add.rectangle(484,34,50,36,0xffffff,.001).setInteractive({useHandCursor:true}).setDepth(19);
-  const pauseIcon=label(this,484,34,'Ⅱ',20,INK,.5);
-  this.scoreText=label(this,30,64,'점수 0',17);
-  this.coinText=label(this,W-33,64,'🪙 0',16,'#946b24',1);
-  this.comboText=label(this,276,64,'',14,'#bd7650',.5);
-  const baseLabel=label(this,30,88,'기지',12,MUTED);
+  rounded(this.hudPanel,302,18,112,28,0xd8f3e9,13);
+  rounded(this.hudPanel,459,16,50,32,0xe8e0fa,13);
+  // 인게임에 게임 제목을 다시 적을 이유가 없다. 그 줄을 빼고 점수·코인을 올려 패널을 128→104 로 줄였다.
+  this.scoreText=label(this,30,32,'점수 0',17);
+  this.coinText=label(this,172,32,'🪙 0',16,'#946b24');
+  this.waveText=label(this,358,32,'WAVE 1',15,INK,.5);
+  this.pauseButton=this.add.rectangle(484,32,50,36,0xffffff,.001).setInteractive({useHandCursor:true}).setDepth(19);
+  const pauseIcon=label(this,484,32,'Ⅱ',20,INK,.5);
+  const baseLabel=label(this,30,60,'기지',12,MUTED);
   this.hpBar=this.add.graphics().setDepth(16);
-  this.healthValue=label(this,505,88,'100 / 100',11,MUTED,1);
-  this.levelText=label(this,30,110,'Lv.1',12,'#638a9e');
+  this.healthValue=label(this,505,60,'100 / 100',11,MUTED,1);
+  this.levelText=label(this,30,84,'Lv.1',12,'#638a9e');
   this.xpBar=this.add.graphics().setDepth(16);
-  this.xpValue=label(this,505,110,'성장',10,MUTED,1);
+  this.xpValue=label(this,505,84,'성장',10,MUTED,1);
   this.wepHud=this.add.container(0,0).setDepth(16);this.buildWeaponHud();
-  this.missionText=label(this,505,129,'',10,MUTED,1);
+  this.missionText=label(this,505,104,'',10,MUTED,1);
+  // 콤보는 가끔 뜨는 축하 문구라 패널 안에 자리를 잡아두지 않고 바로 아래에 띄운다.
+  this.comboText=label(this,W/2,HUD_BOTTOM+16,'',15,'#bd7650',.5);
   this.bombBtn=this.add.graphics().setDepth(15);this.itemBtn=this.add.graphics().setDepth(15);
   this.bombArc=this.add.graphics().setDepth(16);this.itemArc=this.add.graphics().setDepth(16);
   this.bombIcon=label(this,W-62,876,'💣',29,INK,.5);
@@ -55,7 +56,7 @@ export function createHudMethods({W,BASE_LINE,MISSIONS}){
   this.hint=this.add.text(W/2,864,'화면을 탭하면 물폭탄!',{fontSize:'13px',fontStyle:'bold',color:INK,backgroundColor:'#f4fffcdd',padding:{x:12,y:6}}).setOrigin(.5).setDepth(16);
   this.time.delayedCall(6000,()=>{if(!this.hint)return;this.tweens.add({targets:this.hint,alpha:0,duration:500,onComplete:()=>{this.hint?.destroy();this.hint=null}})});
   this.warnText=this.add.text(W/2,BASE_LINE-46,'기지가 위험해요!',{fontSize:'23px',fontStyle:'bold',color:'#b65369',stroke:'#fff',strokeThickness:4}).setOrigin(.5).setDepth(15).setVisible(false);
-  this.hudItems=[this.hudPanel,title,this.waveText,this.pauseButton,pauseIcon,this.scoreText,this.coinText,this.comboText,baseLabel,this.hpBar,this.healthValue,this.levelText,this.xpBar,this.xpValue,this.wepHud,this.missionText,this.bombBtn,this.itemBtn,this.bombIcon,this.itemIcon,this.bombLabel,this.itemLabel,this.bombStatus,this.itemStatus,this.hint];
+  this.hudItems=[this.hudPanel,this.waveText,this.pauseButton,pauseIcon,this.scoreText,this.coinText,this.comboText,baseLabel,this.hpBar,this.healthValue,this.levelText,this.xpBar,this.xpValue,this.wepHud,this.missionText,this.bombBtn,this.itemBtn,this.bombIcon,this.itemIcon,this.bombLabel,this.itemLabel,this.bombStatus,this.itemStatus,this.hint];
   // HUD has its own fixed camera, so combat zoom / shake never clips its controls.
   const camera=this.hudCamera=this.cameras.add(0,0,W,960).setName('fixed-hud');
   const mask=o=>{o.cameraFilter|=camera.id};
@@ -68,18 +69,18 @@ export function createHudMethods({W,BASE_LINE,MISSIONS}){
  buildWeaponHud(){
   if(!this.wepHud)return;this.wepHud.removeAll(true);
   (this.arsenal||[]).slice(0,1).forEach(a=>{
-   const g=this.add.graphics();rounded(g,26,119,152,21,0xe7f3ef,10);this.wepHud.add(g);
-   this.wepHud.add(this.add.circle(38,129.5,4,a.wp.color).setStrokeStyle(2,0xffffff));
-   const t=this.add.text(48,129.5,`${a.wp.name} · Lv.${a.lv}`,{fontSize:'10px',fontStyle:'bold',color:INK}).setOrigin(0,.5);this.wepHud.add(t);
+   const g=this.add.graphics();rounded(g,26,94,152,21,0xe7f3ef,10);this.wepHud.add(g);
+   this.wepHud.add(this.add.circle(38,104.5,4,a.wp.color).setStrokeStyle(2,0xffffff));
+   const t=this.add.text(48,104.5,`${a.wp.name} · Lv.${a.lv}`,{fontSize:'10px',fontStyle:'bold',color:INK}).setOrigin(0,.5);this.wepHud.add(t);
   });
   pin(this,this.wepHud);
  },
  updateHud(){
   this.scoreText.setText(`점수 ${this.score.toLocaleString()}`);this.waveText.setText(`WAVE ${this.wave}`);this.coinText.setText(`🪙 ${this.coins.toLocaleString()}`);
   const hp=Math.max(0,Math.min(1,this.baseHp/this.baseMax)),xp=Math.max(0,Math.min(1,this.xp/this.xpNext));
-  rail(this.hpBar,80,82,330,11,hp,hp>.5?0x77ceb2:hp>.25?0xf2c77b:0xee9eaa);
+  rail(this.hpBar,80,54,330,11,hp,hp>.5?0x77ceb2:hp>.25?0xf2c77b:0xee9eaa);
   this.healthValue.setText(`${Math.max(0,Math.ceil(this.baseHp))} / ${this.baseMax}`);
-  rail(this.xpBar,80,106,330,7,xp,0xb9a5e9);this.levelText.setText(`Lv.${this.level}`);this.xpValue.setText(`${Math.floor(xp*100)}%`);
+  rail(this.xpBar,80,80,330,7,xp,0xb9a5e9);this.levelText.setText(`Lv.${this.level}`);this.xpValue.setText(`${Math.floor(xp*100)}%`);
   this.comboText.setText(this.streak>=3?`✦ ${this.streak}연속!`:'');
   this.missionText.setText('오늘 '+MISSIONS.map(m=>this.settings.completed?.[m.id]?'✓':`${Math.min(m.target,this.missionValue(m))}/${m.target}`).join(' · '));
  },
