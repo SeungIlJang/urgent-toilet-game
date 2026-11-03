@@ -17,6 +17,7 @@
     "sfx:build": "node scripts/build-sfx.mjs",
     "build": "npm run verify && vite build && npm run sync:www && npm run verify:economy",
     "build:release": "node scripts/build-release.mjs",
+    "deploy": "npm run build:release && node scripts/deploy-ota.mjs",
     "android:sync": "npm run build && npx cap sync android && npm run verify:native-assets",
     "android:apk": "npm run android:sync && cd android && ./gradlew assembleDebug"
   },
