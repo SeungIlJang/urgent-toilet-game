@@ -16,6 +16,13 @@ const USE_TEST_ADS = import.meta.env.VITE_REAL_ADS !== '1';
 // 빌드 산출물이 어느 모드로 굳었는지 확인용. scripts/sync-www.mjs 가 이 문자열을 검사한다.
 const AD_MODE = USE_TEST_ADS ? 'ad-mode:test' : 'ad-mode:real';
 if (typeof window !== 'undefined') window.__AD_MODE__ = AD_MODE;
+// ⚠️ 광고 전면 중단 (2026-11-03 ~ 2026-12-02 AdMob 계정 정지)
+// 무효 트래픽으로 정지됐고 기간 중 추가 위반이면 영구 정지라 광고 요청 자체를 끊는다.
+// initAdMob 만 막으면 admobReady 가 false 로 남아 배너·전면·리워드가 전부 AdMob 을 타지 않고,
+// 리워드는 showAdFallback 이 받아 보상이 그대로 지급된다.
+// 12/2 이후 되살리려면 true 로 바꾸고, 빌드한 dist/index.html 을 games 레포의 toilet.html 로
+// 복사해야 한다. 앱은 OTA(games/toilet.html)를 우선 로드하므로 AAB 만 새로 올려도 반영되지 않는다.
+const ADS_ENABLED = false;
 const ADMOB_REWARD_ID = 'ca-app-pub-9017259597860535/5418809176';
 const ADMOB_TEST_REWARD_ID = 'ca-app-pub-3940256099942544/5224354917';
 // 전면광고(게임오버 다시도전 3회당 1번).
@@ -440,7 +447,7 @@ class GameScene extends Phaser.Scene {
   commitGameOver(){if(this.state==='over')return;this.state='over';this.setHudVisible(false);this.showBannerAd();this.clearBanners();for(const b of this.bolts)b.destroy();this.bolts=[];for(const e of this.enemies){e.bar?.destroy();e.barBg?.destroy()}this.showEnd()}
   declineRevive(){this.reviveTimer?.remove();this.reviveTimer=null;this.reviveOverlay?.destroy();this.reviveOverlay=null;this.commitGameOver()}
   watchAdRevive(){if(this.state!=='dying')return;this.reviveTimer?.remove();this.reviveTimer=null;this.reviveOverlay?.destroy();this.reviveOverlay=null;this.showAd(()=>this.doRevive(),()=>{this.commitGameOver();this.banner('광고를 끝까지 봐야 부활돼요','#ffd24a',170)})}
-  async initAdMob(){this.admobReady=false;try{if(Capacitor.isNativePlatform()){await AdMob.initialize({initializeForTesting:USE_TEST_ADS});this.admobReady=true;if(this.state==='ready')this.showBannerAd()}}catch(e){this.admobReady=false}}
+  async initAdMob(){this.admobReady=false;if(!ADS_ENABLED)return;try{if(Capacitor.isNativePlatform()){await AdMob.initialize({initializeForTesting:USE_TEST_ADS});this.admobReady=true;if(this.state==='ready')this.showBannerAd()}}catch(e){this.admobReady=false}}
   // 제스처 바(홈 인디케이터) 높이. index.html 의 viewport-fit=cover 가 있어야 값이 잡힌다.
   // 이걸 margin 으로 넘기지 않으면 배너가 제스처 바와 겹친다.
   bottomInset(){try{const p=document.createElement('div');p.style.cssText='position:fixed;left:0;bottom:0;width:0;height:env(safe-area-inset-bottom,0px);visibility:hidden;pointer-events:none';document.body.appendChild(p);const h=Math.round(p.getBoundingClientRect().height);p.remove();return h}catch(e){return 0}}
