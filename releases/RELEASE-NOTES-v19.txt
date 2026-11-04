@@ -1,0 +1,41 @@
+화장실 수비대 — 릴리스 노트 v1.1.1 (versionCode 19)
+
+파일: urgentdef-v19c19.aab (서명 완료, jar verified)
+appId: kr.co.sharetoilet.urgentgame
+빌드일: 2026-11-02
+
+[Play Console 릴리스 노트 — 복사용]
+
+<ko-KR>
+· 전면 아트 교체 — 적·소품·시작/결과 화면 새 그래픽
+· HUD 개선 — 패널 축소·배치 정리로 화면이 더 깔끔
+· 아이콘 및 스플래시 화면 갱신
+· 안정성 개선
+</ko-KR>
+<en-US>
+· Full art overhaul — new graphics for enemies, props, start/result screens
+· HUD refinements — slimmer panels and cleaner layout
+· Updated icon and splash screen
+· Stability improvements
+</en-US>
+
+[검증]
+- versionCode 19 / versionName 1.1.1
+- applicationId kr.co.sharetoilet.urgentgame
+- minSdkVersion 24 (Play 자동보호 요건 충족)
+- 실광고: VITE_REAL_ADS=1 빌드 — 실제 AdMob ID 적용 확인 (리워드/전면)
+- 서명: jar verified (urgentdef 키, 기존 Play 릴리스와 동일 키)
+
+[광고]
+- 실광고 모드. 본인이 직접 광고 클릭 금지 (AdMob 계정 정지 사유).
+
+[빌드 환경]
+- npm run build:release (VITE_REAL_ADS=1) -> npx cap sync android -> gradlew bundleRelease
+- JDK 21, Android SDK C:\dev\android-sdk, Vite 7 / Capacitor
+- 키스토어: C:\dev\keystores\urgentdef-upload.jks (alias urgentdef)
+
+[다운로드]
+https://seungiljang.github.io/games/dl/urgentdef-v19c19.aab
+
+[남은 일]
+- Play Console에 versionCode 19 업로드 (기존 앱 업데이트)

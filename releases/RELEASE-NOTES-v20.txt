@@ -1,0 +1,16 @@
+﻿[모두의 타워디펜스/화장실 수비대 v1.1.2 (versionCode 20)]
+
+• Lv.10 2차 전직 스프라이트 3종 추가 — 광전사·대마법사·명사수 각각 고유 그림
+• 캐릭터 머리 위 삼각형 표식 제거
+• 캔버스를 기기 비율로 확장, 상단 HUD를 전용 띠로 분리(적 가림 해소)
+• 인게임 HUD 간소화 — 제목 줄 제거, 패널 축소·반투명화
+• 런처 아이콘을 변기 캐릭터로 교체
+• 안정성 개선
+
+[EN]
+• Lv.10 second-job sprites — unique art for Berserker, Archmage, Sniper
+• Removed triangle marker above characters
+• Canvas expanded to device ratio; top HUD moved to its own band
+• Simplified in-game HUD
+• New launcher icon
+• Stability improvements
