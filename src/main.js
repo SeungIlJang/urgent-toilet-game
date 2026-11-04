@@ -45,6 +45,14 @@ if (Capacitor.isNativePlatform()) {
 const ART = import.meta.glob('./assets/*.png', { eager: true, query: '?url', import: 'default' });
 const ART_SCALE = 0.5; // 스프라이트를 게임 기준의 2배 해상도로 받았으므로 절반 크기로 그린다
 const W = 540, H = 960, BASE_LINE = 812, SAVE_KEY = 'urgentDefenseV1';
+// 플레이 영역은 540x960 고정이다. 요즘 폰은 훨씬 길어서 FIT 으로 맞추면 위아래에 검은 띠가 남는다
+// (실측: 412x915 기기에서 위 91px·아래 92px). 그 공간을 캔버스 안으로 끌어와 위쪽은 HUD 전용 띠로,
+// 아래쪽은 제스처바 자리로 쓴다. 덕분에 HUD 가 적이 내려오는 길을 더 이상 가리지 않는다.
+// 16:9 기기에서는 남는 공간이 없어 BAND=0 이 되고 예전처럼 HUD 가 플레이 영역에 겹쳐 그려진다.
+const SCREEN_RATIO = (globalThis.innerHeight || H) / (globalThis.innerWidth || W);
+const CANVAS_H = Math.round(Math.min(Math.max(W * SCREEN_RATIO, H), 1280));
+// 남는 세로 공간의 55% 를 위(HUD)에, 나머지는 아래(제스처바)에 준다.
+const BAND = Math.round(Math.min((CANVAS_H - H) * 0.55, 240));
 // 버전은 package.json 하나만 고치면 되도록 vite define(__APP_VERSION__)으로 주입한다.
 const APP_VERSION = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : 'dev';
 const load = () => { try { return JSON.parse(localStorage.getItem(SAVE_KEY) || '{}'); } catch { return {}; } };
@@ -348,9 +356,19 @@ class GameScene extends Phaser.Scene {
   // (타이틀과 종료 모달만 직접 숨기고 있었다.) 오버레이가 하나라도 열려 있으면 HUD 전체를 숨긴다.
   // update() 매 프레임 호출되므로 값이 바뀔 때만 실제로 적용한다.
   syncHud(){const want=this.state!=='ready'&&this.state!=='over'&&!this.overlayOpen()&&!this.reviveOverlay&&!this.adOverlay;
-    if(want!==this._hudShown)this.setHudVisible(want)}
+    if(want!==this._hudShown)this.setHudVisible(want);
+    // 위 띠·아래 여백은 메인 카메라 뷰포트 바깥이라 화면(타이틀·상점 등) 배경이 닿지 않는다.
+    // 어떤 화면이 떠 있느냐에 따라 색을 맞춰 줘야 경계선이 보이지 않는다.
+    // 모든 오버레이 화면은 ui-screens.js 의 background() 가 같은 색(0xeaf9f5)으로 깔린다.
+    const onScreen=!want, frame=onScreen?0xeaf9f5:null;
+    if(frame!==this._frameColor){
+      this._frameColor=frame;
+      const t=THEMES[Phaser.Math.Clamp(Math.floor((this.wave-1)/3),0,THEMES.length-1)];
+      this.bandFill?.setFillStyle(frame??t.sky);
+      this.padFill?.setFillStyle(frame??t.ground);
+    }}
   rebuildArsenal(){const owned=this.settings.weaponsOwned||['basic'];let id=this.settings.weapon;if(!owned.includes(id))id=owned[0]||'basic';this.settings.weapon=id;const prev=(this.arsenal&&this.arsenal[0]&&this.arsenal[0].wp.id===id)?this.arsenal[0]:null,wp=WEAPONS.find(w=>w.id===id)||WEAPONS[0],lv=this.settings.weaponLevels[id]||0;this.arsenal=[{wp,lv,dmgMul:wp.dmg*(1+lv*0.10),bolts:wp.bolts+(id==='shotgun'?Math.floor(lv/3):0),pierce:wp.pierce+(id==='laser'?Math.floor(lv/2):0),miniR:72+(id==='grenade'?lv*10:0),fireFactor:wp.fire*((id==='basic'||id==='rapid')?(1-lv*0.04):1),lvlFireMul:prev?prev.lvlFireMul:1,lastFire:prev?prev.lastFire:0}];this.buildWeaponHud()}
-  createInput(){this.input.on('pointerdown',p=>{this.sound.unlock();if(this._uiTap){this._uiTap=false;return}if(this.overlayOpen())return;if(this.state==='ready'||this.state==='over')return;if(this.state!=='playing')return;if(p.y<HUD_BOTTOM+6)return;if(p.x<118&&p.y>836){this.activateSpecial();return}if(p.x>W-118&&p.y>836)return;this.throwBomb(p.x,Phaser.Math.Clamp(p.y,HUD_BOTTOM+6,BASE_LINE-20))});this.pauseButton.on('pointerdown',e=>{this._uiTap=true;e.event?.stopPropagation?.();this.state==='paused'?this.resumeGame():this.pauseGame()})}
+  createInput(){this.input.on('pointerdown',p=>{p={x:p.x,y:p.y-BAND};this.sound.unlock();if(this._uiTap){this._uiTap=false;return}if(this.overlayOpen())return;if(this.state==='ready'||this.state==='over')return;if(this.state!=='playing')return;if(p.y<HUD_BOTTOM+6)return;if(p.x<118&&p.y>836){this.activateSpecial();return}if(p.x>W-118&&p.y>836)return;this.throwBomb(p.x,Phaser.Math.Clamp(p.y,HUD_BOTTOM+6,BASE_LINE-20))});this.pauseButton.on('pointerdown',e=>{this._uiTap=true;e.event?.stopPropagation?.();this.state==='paused'?this.resumeGame():this.pauseGame()})}
   overlayOpen(){return !!(this.shopOverlay||this.charOverlay||this.lbOverlay||this.weaponOverlay||this.pauseOverlay||this.jobOverlay||this.upOverlay||this.resetOverlay)}
   addCoin(n){const amount=Math.max(1,Math.round(n*this.coinMult*(this.runCoinMul||1)));this.coins+=amount;return amount} // 🪙은 판 안에서만 쓰는 지갑이라 저장하지 않는다
   punch(s=1.04){if(this.reducedMotion)return;this.cameras.main.zoomTo(s,90,'Sine.easeInOut',true);this.time.delayedCall(120,()=>{if(this.state==='playing')this.cameras.main.zoomTo(1,110)})}
@@ -475,7 +493,7 @@ class GameScene extends Phaser.Scene {
     this.showAdFallback(cb)}
   showAdFallback(cb){const ov=this.adOverlay=this.add.container(0,0).setDepth(60);ov.add(this.add.rectangle(W/2,H/2,W,H,0x05060c,.96).setInteractive());ov.add(this.add.text(W/2,H/2-70,'📺 광고',{fontSize:'42px',fontStyle:'900',color:'#fff'}).setOrigin(.5));ov.add(this.add.text(W/2,H/2-16,'광고 재생 중…',{fontSize:'18px',color:'#bfe8ff'}).setOrigin(.5));let t=3;const c2=this.add.text(W/2,H/2+44,`${t}`,{fontSize:'28px',fontStyle:'900',color:'#ffe082'}).setOrigin(.5);ov.add(c2);this.adTimer=this.time.addEvent({delay:1000,repeat:3,callback:()=>{t--;c2.setText(t>0?`${t}`:'✓');if(t<=0){this.adTimer=null;this.adOverlay?.destroy();this.adOverlay=null;cb&&cb()}}})}
   doRevive(){this.revived=true;this.setHudVisible(true);this.baseHp=Math.max(1,Math.round(this.baseMax*0.5));for(const e of[...this.enemies]){e.bar?.destroy();e.barBg?.destroy();if(!this.reducedMotion)this.fx.emitParticleAt(e.x,e.y,6);e.destroy()}this.enemies=[];if(!this.reducedMotion)this.cameras.main.flash(320,120,255,180);this.sound.win?.();this.punch(1.06);this.banner('✨ 부활! WAVE 다시 시작','#59c2ff');this.toSpawn=0;this.wave--;this.startWave();this.lastFire=this.time.now;this.updateHud()}
-  applyTheme(tier){const t=THEMES[Phaser.Math.Clamp(tier,0,THEMES.length-1)];if(!t)return;this.cameras.main.setBackgroundColor(t.sky);this.sky?.setFillStyle(t.sky);this.groundBand?.setFillStyle(t.ground);this.groundEdge?.setFillStyle(t.edge)}
+  applyTheme(tier){const t=THEMES[Phaser.Math.Clamp(tier,0,THEMES.length-1)];if(!t)return;this.cameras.main.setBackgroundColor(t.sky);this.sky?.setFillStyle(t.sky);this.bandFill?.setFillStyle(t.sky);this.padFill?.setFillStyle(t.ground);this.groundBand?.setFillStyle(t.ground);this.groundEdge?.setFillStyle(t.edge)}
   persistSettings(){save({...this.settings,soundOn:this.sound.soundOn,vibrationOn:this.sound.vibrationOn})}
   // 타이틀용 말랑한 알약 버튼. 예전엔 회색 네모라 밋밋했다.
   // Graphics 로 둥근 사각형 + 아래 그림자 + 흰 테두리를 그리고, 입력은 투명 사각형이 받는다.
@@ -541,5 +559,5 @@ class GameScene extends Phaser.Scene {
 }
 
 Object.assign(GameScene.prototype, createScreenMethods({LOOKS,WEAPONS,MISSIONS,UPGRADES,RARITY,JOBS1,JOBS2,WEP_MAX,APP_VERSION,upgCost,wepUpCost,gemPayout,save,SAVE_KEY}));
-Object.assign(GameScene.prototype, createHudMethods({W,BASE_LINE,MISSIONS}));
-const __GAME=new Phaser.Game({type:Phaser.AUTO,parent:'game',width:W,height:H,backgroundColor:'#a9e8f3',disableVisibilityChange:true,render:{antialias:true,powerPreference:'low-power',batchSize:2048},fps:{target:60,min:30},scale:{mode:Phaser.Scale.FIT,autoCenter:Phaser.Scale.CENTER_BOTH},scene:GameScene});if(typeof window!=='undefined')window.__game=__GAME;
+Object.assign(GameScene.prototype, createHudMethods({W,H,BASE_LINE,MISSIONS,BAND,CANVAS_H}));
+const __GAME=new Phaser.Game({type:Phaser.AUTO,parent:'game',width:W,height:CANVAS_H,backgroundColor:'#a9e8f3',disableVisibilityChange:true,render:{antialias:true,powerPreference:'low-power',batchSize:2048},fps:{target:60,min:30},scale:{mode:Phaser.Scale.FIT,autoCenter:Phaser.Scale.CENTER_BOTH},scene:GameScene});if(typeof window!=='undefined')window.__game=__GAME;

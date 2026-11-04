@@ -16,7 +16,7 @@ function pin(s,o){
  if(!o||!s.hudCamera)return;o.cameraFilter|=s.cameras.main.id;o.cameraFilter&=~s.hudCamera.id;
  if(o.list)for(const child of o.list)pin(s,child);
 }
-export function createHudMethods({W,BASE_LINE,MISSIONS}){
+export function createHudMethods({W,H,BASE_LINE,MISSIONS,BAND,CANVAS_H}){
  return {
  createHud(){
   this.hudCamera=null;
@@ -57,13 +57,21 @@ export function createHudMethods({W,BASE_LINE,MISSIONS}){
   this.time.delayedCall(6000,()=>{if(!this.hint)return;this.tweens.add({targets:this.hint,alpha:0,duration:500,onComplete:()=>{this.hint?.destroy();this.hint=null}})});
   this.warnText=this.add.text(W/2,BASE_LINE-46,'기지가 위험해요!',{fontSize:'23px',fontStyle:'bold',color:'#b65369',stroke:'#fff',strokeThickness:4}).setOrigin(.5).setDepth(15).setVisible(false);
   this.hudItems=[this.hudPanel,this.waveText,this.pauseButton,pauseIcon,this.scoreText,this.coinText,this.comboText,baseLabel,this.hpBar,this.healthValue,this.levelText,this.xpBar,this.xpValue,this.wepHud,this.missionText,this.bombBtn,this.itemBtn,this.bombIcon,this.itemIcon,this.bombLabel,this.itemLabel,this.bombStatus,this.itemStatus,this.hint];
+  // 플레이 영역(540x960)을 캔버스 위쪽 BAND 만큼 아래로 내리고, 비워진 위쪽 띠에 HUD 를 둔다.
+  // 메인 카메라는 뷰포트만 내려가므로 월드 좌표(BASE_LINE 등)는 하나도 손대지 않아도 된다.
+  // BAND=0(16:9 기기)이면 예전과 똑같이 HUD 가 플레이 영역 위에 겹쳐 그려진다.
+  if(BAND>0)this.cameras.main.setViewport(0,BAND,W,H);
+  // 띠와 아래 여백은 메인 카메라 바깥이라 하늘색이 안 칠해진다. 테마 색으로 직접 채운다.
+  this.bandFill=this.add.rectangle(W/2,BAND/2,W,BAND,0xa9e8f3).setDepth(-1).setVisible(BAND>0);
+  const padH=CANVAS_H-BAND-H;
+  this.padFill=this.add.rectangle(W/2,BAND+H+padH/2,W,padH,0x577a45).setDepth(-1).setVisible(padH>0);
   // HUD has its own fixed camera, so combat zoom / shake never clips its controls.
-  const camera=this.hudCamera=this.cameras.add(0,0,W,960).setName('fixed-hud');
+  const camera=this.hudCamera=this.cameras.add(0,0,W,CANVAS_H).setName('fixed-hud');
   const mask=o=>{o.cameraFilter|=camera.id};
   for(const o of this.children.list)mask(o);
   this.events.on('addedtoscene',mask);
   this.events.once('shutdown',()=>this.events.off('addedtoscene',mask));
-  for(const o of [...this.hudItems,this.bombArc,this.itemArc])pin(this,o);
+  for(const o of [...this.hudItems,this.bombArc,this.itemArc,this.bandFill,this.padFill])pin(this,o);
   this.updateHud();this.updateActionHud();
  },
  buildWeaponHud(){
