@@ -121,7 +121,7 @@ export function createScreenMethods(E){
     text(this,c,270,82,first?'우리 수비대의 새 모습':'한 번 더, 멋지게 각성!',30);text(this,c,270,128,'마음에 드는 전직을 골라주세요',16,C.muted);
     opts.forEach((o,i)=>{const y=first?274+i*196:400,cls=first?o.id:this.job;
       card(this,c,270,y,470,172,0xffffff,{warrior:0xffc6a6,mage:0xd4baff,archer:0xa9e6ba}[cls]);
-      art(this,c,`poop_${cls}`,101,y-5,118,133);text(this,c,332,y-34,o.name,27);
+      art(this,c,`poop_${o.id}`,101,y-5,118,133);text(this,c,332,y-34,o.name,27);
       text(this,c,330,y+24,o.desc,15,C.muted,{wordWrap:{width:292},lineSpacing:6});
       const hit=this.add.rectangle(270,y,470,172,0xffffff,.001).setInteractive({useHandCursor:true});c.add(hit);
       hit.on('pointerdown',p=>{this._uiTap=true;p.event?.stopPropagation?.();this.applyJob(o.id,first)});

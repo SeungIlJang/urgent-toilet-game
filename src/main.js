@@ -348,8 +348,13 @@ class GameScene extends Phaser.Scene {
     // 궁수 — green headband + feather
     make('poop_archer',g=>{g.fillStyle(0x2f9d55,1);g.fillRect(cx-64,76,128,16);g.fillStyle(0x257c43,1);g.fillRect(cx-64,86,128,6);g.fillStyle(0x2f9d55,1);g.fillTriangle(cx-64,76,cx-86,82,cx-64,92);g.fillStyle(0x8be36a,1);g.fillTriangle(cx+52,74,cx+60,24,cx+72,72);g.fillStyle(0x2f9d55,1);g.fillRect(cx+58,40,4,36)});
   }
-  createHero(){this.makePoopTexture();this.heroX=W/2;this.turretBase=this.add.circle(this.heroX,BASE_LINE-6,26,0x3a3350).setDepth(6);this.turret=this.add.rectangle(this.heroX,BASE_LINE-22,18,46,0x5a5570).setOrigin(.5,1).setStrokeStyle(3,0x2a2740).setDepth(7);this.hero=this.add.sprite(this.heroX,BASE_LINE-2,'poop',0).setScale(.5*ART_SCALE).setOrigin(.5,.92).setDepth(8);this.hero.setTint(LOOKS[this.settings.selected]?.tint||0xffffff);this.muzzle=this.add.circle(this.heroX,BASE_LINE-70,0,0xfff1a8,0).setDepth(10);this.aura=this.add.ellipse(this.heroX,BASE_LINE-30,98,132,0xffef99,0).setDepth(7).setVisible(false);this.auraOn=false;this.hairFx=null}
-  setJobLook(cls,big){const tex={warrior:'poop_warrior',mage:'poop_mage',archer:'poop_archer'}[cls]||'poop',color={warrior:0xff7b4a,mage:0xb46bff,archer:0x4ad06a}[cls]||0xffe14d;this.hero.setTexture(tex);this.hero.clearTint();this.jobColor=color;this.auraBig=big;this.aura.setVisible(true).setFillStyle(color,.35);this.auraOn=true;this.hairFx?.destroy();this.hairFx=null;if(big){const c=this.hairFx=this.add.container(this.heroX,BASE_LINE-128).setDepth(9),n=7,col=0xffe14d;for(let i=0;i<n;i++){const dx=(i-(n-1)/2)*9;c.add(this.add.triangle(dx,0,-6,10,6,10,0,-28,col).setStrokeStyle(2,0xffffff,.55))}}}
+  createHero(){this.makePoopTexture();this.heroX=W/2;this.turretBase=this.add.circle(this.heroX,BASE_LINE-6,26,0x3a3350).setDepth(6);this.turret=this.add.rectangle(this.heroX,BASE_LINE-22,18,46,0x5a5570).setOrigin(.5,1).setStrokeStyle(3,0x2a2740).setDepth(7);this.hero=this.add.sprite(this.heroX,BASE_LINE-2,'poop',0).setScale(.5*ART_SCALE).setOrigin(.5,.92).setDepth(8);this.hero.setTint(LOOKS[this.settings.selected]?.tint||0xffffff);this.muzzle=this.add.circle(this.heroX,BASE_LINE-70,0,0xfff1a8,0).setDepth(10);this.aura=this.add.ellipse(this.heroX,BASE_LINE-30,98,132,0xffef99,0).setDepth(7).setVisible(false);this.auraOn=false}
+  setJobLook(cls,big){
+    const tex={warrior:'poop_warrior',mage:'poop_mage',archer:'poop_archer',berserker:'poop_berserker',archmage:'poop_archmage',sniper:'poop_sniper'}[cls]||'poop';
+    const color={warrior:0xff7b4a,mage:0xb46bff,archer:0x4ad06a,berserker:0xffa15e,archmage:0xd5a2ff,sniper:0x93e7a2}[cls]||0xffe14d;
+    this.hero.setTexture(tex);this.hero.clearTint();this.jobColor=color;this.auraBig=big;
+    this.aura.setVisible(true).setFillStyle(color,.35);this.auraOn=true;
+  }
   nearestEnemy(){let best=null,bd=1e9;for(const e of this.enemies){if(!e.active||e.y<8)continue;const d=Phaser.Math.Distance.Between(this.heroX,BASE_LINE-40,e.x,e.y);if(d<bd){bd=d;best=e}}return best}
   setHudVisible(on){this._hudShown=on;for(const o of (this.hudItems||[]))o?.setVisible?.(on);if(this.bombArc)this.bombArc.setVisible(on);if(this.itemArc)this.itemArc.setVisible(on)}
   // 레벨업·전직·상점·일시정지 오버레이는 HUD를 가리지 않아, 뒤로 WAVE·점수·기지HP·미션이 비쳐 지저분했다.
@@ -394,7 +399,7 @@ class GameScene extends Phaser.Scene {
     else if(id==='archmage'){this.jobExplode=true;this.jobExplodeBig=true;this.bombR=Math.round(this.bombR*1.2)}
     else if(id==='sniper'){this.jobPierceMin=99;this.jobFireMul*=0.7}
     this.jobOverlay?.destroy();this.jobOverlay=null;this.state='playing';this.lastSpawn=this.time.now;this.lastFire=this.time.now;
-    this.setJobLook(first?id:this.job,!first);
+    this.setJobLook(id,!first);
     const nm=(JOBS1.find(j=>j.id===id)||Object.values(JOBS2).find(j=>j.id===id))?.name||'전직';this.banner('⚡ '+nm+' 각성!','#ffe14d');this.punch(1.06);if(!this.reducedMotion)this.cameras.main.flash(220,255,235,150);this.updateHud()}
   miniBlast(x,y,r){r=r||72;const ring=this.add.circle(x,y,8,0x9c5cff,.5).setStrokeStyle(4,0xd7b3ff).setDepth(13);this.tweens.add({targets:ring,radius:r,alpha:0,duration:260,onComplete:()=>ring.destroy()});if(!this.reducedMotion)this.fx.emitParticleAt(x,y,10);for(const e of[...this.enemies]){if(Phaser.Math.Distance.Between(x,y,e.x,e.y)<=r)this.hitEnemy(e,Math.max(1,Math.round(this.boltDmg*0.8)),e.x,e.y)}}
   killPop(x,y,color){if(this.reducedMotion)return;const ring=this.add.circle(x,y,6,color,0).setStrokeStyle(4,color,.95).setDepth(11);this.tweens.add({targets:ring,radius:36,alpha:0,duration:250,ease:'Cubic.easeOut',onComplete:()=>ring.destroy()});const fl=this.add.circle(x,y,15,0xffffff,.85).setDepth(11);this.tweens.add({targets:fl,alpha:0,scale:1.9,duration:170,onComplete:()=>fl.destroy()})}
@@ -542,7 +547,7 @@ class GameScene extends Phaser.Scene {
   update(_,delta){this.syncHud();let dt=Math.min(delta,50)/1000;if(this.time.now<(this._slowUntil||0))dt*=0.4;
     // hero always faces & aims at the nearest enemy (turret points at it), idle bob otherwise
     if(this.hero){const t=this.state==='playing'?this.nearestEnemy():null;if(t){this.hero.setFlipX(t.x<this.heroX);this.turret.setRotation(Phaser.Math.Angle.Between(this.heroX,BASE_LINE-22,t.x,t.y)+Math.PI/2)}else{this.hero.setFlipX(false);this.turret.setRotation(0)}this.hero.y=BASE_LINE-6+Math.sin(this.time.now/260)*1.5}
-    if(this.auraOn){this.aura.setPosition(this.heroX,this.hero.y-24).setScale(1+Math.sin(this.time.now/120)*(this.auraBig?.18:.1)).setAlpha(.22+Math.abs(Math.sin(this.time.now/150))*.3);if(this.hairFx){this.hairFx.x=this.heroX;this.hairFx.y=this.hero.y-122;this.hairFx.setScale(1+Math.sin(this.time.now/90)*.08)}}
+    if(this.auraOn){this.aura.setPosition(this.heroX,this.hero.y-24).setScale(1+Math.sin(this.time.now/120)*(this.auraBig?.18:.1)).setAlpha(.22+Math.abs(Math.sin(this.time.now/150))*.3);}
     if(this.wallTiles){this.wallTiles.tilePositionY-=6*dt;this.floorTiles.tilePositionX+=8*dt}
     if(this.state!=='playing'){this.warnText?.setVisible(false);return}
     if(this.streak>0&&this.time.now-this.streakAt>2400)this.streak=0;

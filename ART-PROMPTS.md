@@ -244,3 +244,52 @@ PNG로 받은 뒤 TinyPNG 같은 걸로 한 번 압축하면 보통 절반 이�
 `preload()`에서 이미지를 불러오고 `makeEnemyTextures()` / `makePoopTexture()`를 끄는 작업이 필요합니다.
 2배 크기로 받았다면 `scale` 값도 절반으로 낮춰야 합니다.
 **이미지 준비되면 말씀해 주세요. 그 작업은 제가 하겠습니다.**
+
+---
+
+## 7. 2차 전직 3종 (추가분, 각 480×540)
+
+**현재 2차 전직은 전용 그림이 없습니다.** `setJobLook()` 의 텍스처 매핑이 1차 전직 3종뿐이라,
+전사 → 광전사로 각성해도 **투구 쓴 1차 전직 그림을 그대로 재사용**하고 그 위에 코드로 그린
+노란 삼각형 7개(`hairFx`)만 얹고 있습니다. 그 삼각형이 일러스트와 재질이 맞지 않아 떠 보입니다.
+
+아래 3장을 추가하면 삼각형을 걷어내고 각성 연출을 그림으로 대체할 수 있습니다.
+
+1차 전직과 **같은 캐릭터가 한 단계 더 각성한 모습**으로, 실루엣이 커지고 화려해져야 합니다.
+2차 전직은 색을 덧입히지 않으므로(`clearTint`) 마음껏 컬러로 그려도 됩니다.
+
+### 7-1. 광전사 (`poop_berserker.png`) — 전사의 각성
+
+```
+[공통 스타일] + the same baby toilet character as an awakened berserker,
+battle-worn steel helmet with a huge flowing crimson flame-like crest,
+fierce but still adorable ∧ eyebrows, two tiny rounded fangs,
+glowing orange-red energy wisps rising around the body, small cracks of golden light,
+powered-up heroic pose, warm red and gold palette
+```
+
+### 7-2. 대마법사 (`poop_archmage.png`) — 법사의 각성
+
+```
+[공통 스타일] + the same baby toilet character as a grand archmage,
+towering oversized purple wizard hat with golden stars and tiny crescent moons,
+sparkling violet magic runes orbiting the body, a small glowing orb floating beside it,
+half-closed confident happy eyes, rich purple and gold palette
+```
+
+### 7-3. 명사수 (`poop_sniper.png`) — 궁수의 각성
+
+```
+[공통 스타일] + the same baby toilet character as a master sharpshooter,
+green headband with two long feathers, a tiny round targeting monocle over one eye,
+confident wink and smile, soft green wind streaks swirling around,
+a few tiny arrows floating behind, fresh green and gold palette
+```
+
+### 적용하면 바뀌는 것
+
+- `setJobLook()` 의 텍스처 매핑에 2차 전직 3종을 추가 (현재는 1차 전직만)
+- 머리 위 삼각형(`hairFx`) 제거 — 그림이 각성을 표현하므로 불필요
+- 오라 색은 그대로 두거나 2차 전직용으로 더 밝게 조정
+
+> 넣을 위치는 1차 전직과 같은 `src/assets/` 입니다. 파일명도 위 표기 그대로 써주세요.
