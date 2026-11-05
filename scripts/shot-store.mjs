@@ -7,8 +7,9 @@ import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import puppeteer from 'puppeteer-core';
+import { findBrowser } from './browser-path.mjs';
 
-const EDGE = 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
+const EDGE = findBrowser();
 // www/ 에 없는 파일(manifest 등)은 public/ 에서 찾는다. 없는 채로 두면 404 가 페이지 오류로 잡힌다.
 const ROOT = fileURLToPath(new URL('../www/', import.meta.url));
 const FALLBACK = fileURLToPath(new URL('../public/', import.meta.url));

@@ -4,6 +4,7 @@ import {readFile, mkdir} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import path from 'node:path';
 import puppeteer from 'puppeteer-core';
+import { findBrowser } from './browser-path.mjs';
 
 const root=fileURLToPath(new URL('../www/',import.meta.url));
 const body=await readFile(path.join(root,'game.html'));
@@ -13,7 +14,7 @@ const server=http.createServer((req,res)=>{if(req.url!=='/'){res.writeHead(204);
 await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
 let browser;
 try{
- browser=await puppeteer.launch({executablePath:process.env.TEST_BROWSER_PATH||'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',headless:true,args:['--disable-gpu','--mute-audio']});
+ browser=await puppeteer.launch({executablePath:findBrowser(),headless:true,args:['--disable-gpu','--mute-audio']});
  const page=await browser.newPage();await page.setViewport({width:540,height:960});
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.goto(`http://127.0.0.1:${server.address().port}/`);
