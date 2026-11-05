@@ -1,6 +1,6 @@
 const INK='#264c57',MUTED='#65858d';
-// 상단 정보 패널의 높이와 아래 끝 y. 적은 화면 위(SPAWN_TOP=-40)에서 내려오므로 이 패널이
-// 그대로 적을 가린다 → 높이를 최소로 줄이고 반투명으로 깐다.
+// 상단 정보 패널의 높이와 아래 끝 y. 세로가 긴 기기에서는 패널이 플레이 영역 위쪽 띠(BAND)에
+// 올라가 적을 전혀 가리지 않고, 16:9 에서는 겹치므로 높이를 최소로 줄이고 반투명으로 깐다.
 // main.js 의 입력 데드존이 이 값을 그대로 쓰므로, 바꾸면 양쪽이 같이 움직인다.
 export const HUD_H=104, HUD_BOTTOM=12+HUD_H;
 function label(s,x,y,value,size=16,color=INK,origin=.0){return s.add.text(x,y,value,{fontFamily:'"Malgun Gothic", "Apple SD Gothic Neo", sans-serif',fontSize:size+'px',fontStyle:'bold',color}).setOrigin(origin,.5).setDepth(17)}
@@ -9,7 +9,7 @@ function rail(g,x,y,w,h,fraction,color){g.clear();rounded(g,x,y,w,h,0xe3efec,h/2
 function actionCard(g,x,ready,color){
  g.clear();rounded(g,x-52,846,104,106,0x264c57,24,.12);rounded(g,x-52,840,104,106,0xf8fffc,24);
  g.lineStyle(2,ready?0xc1e7de:0xd6e3e2);g.strokeRoundedRect(x-52,840,104,106,24);
- rounded(g,x-39,850,78,53,ready?color:0xe7eeed,17);
+ rounded(g,x-39,850,78,53,ready?color:0xd3dedd,17);
  g.lineStyle(2,0xffffff,.85);g.strokeRoundedRect(x-39,850,78,53,17);
 }
 function pin(s,o){
@@ -21,8 +21,8 @@ export function createHudMethods({W,H,BASE_LINE,MISSIONS,BAND,CANVAS_H}){
  createHud(){
   this.hudCamera=null;
   this._bombCardReady=undefined;this._itemCardKey=undefined;this.bombWasReady=false;this.itemWasReady=false;
-  // 패널은 적이 내려오는 길목을 덮는다. 높이를 188→128 로 줄이고 반투명(.72)으로 깔아,
-  // 뒤에 있는 적이 비쳐 보이게 한다. HUD_BOTTOM 은 입력 데드존과 맞춰야 한다.
+  // 16:9 기기에서는 패널이 적이 내려오는 길목을 덮는다. 높이를 188→104 로 줄이고 반투명(.72)으로
+  // 깔아 뒤에 있는 적이 비쳐 보이게 한다. HUD_BOTTOM 은 입력 데드존과 맞춰야 한다.
   this.hudPanel=this.add.graphics().setDepth(14);
   rounded(this.hudPanel,12,18,W-24,HUD_H,0x264c57,22,.08);
   rounded(this.hudPanel,12,12,W-24,HUD_H,0xf4fffc,22,.72);
@@ -44,7 +44,10 @@ export function createHudMethods({W,H,BASE_LINE,MISSIONS,BAND,CANVAS_H}){
   this.wepHud=this.add.container(0,0).setDepth(16);this.buildWeaponHud();
   this.missionText=label(this,505,104,'',10,MUTED,1);
   // 콤보는 가끔 뜨는 축하 문구라 패널 안에 자리를 잡아두지 않고 바로 아래에 띄운다.
+  // 이 자리는 기기에 따라 위쪽 띠와 벽 타일의 경계(y=BAND)와 겹칠 수 있어, 글자가 반씩 잘려 보인다.
+  // 어느 쪽에 걸리든 읽히도록 반투명 알약 배경을 깔아 둔다.
   this.comboText=label(this,W/2,HUD_BOTTOM+16,'',15,'#bd7650',.5);
+  this.comboText.setBackgroundColor('#f4fffccc');
   this.bombBtn=this.add.graphics().setDepth(15);this.itemBtn=this.add.graphics().setDepth(15);
   this.bombArc=this.add.graphics().setDepth(16);this.itemArc=this.add.graphics().setDepth(16);
   this.bombIcon=label(this,W-62,876,'💣',29,INK,.5);
@@ -53,7 +56,9 @@ export function createHudMethods({W,H,BASE_LINE,MISSIONS,BAND,CANVAS_H}){
   this.itemLabel=label(this,62,913,'아이템',16,INK,.5);
   this.bombStatus=label(this,W-62,933,'탭해서 사용',11,MUTED,.5);
   this.itemStatus=label(this,62,933,'준비 완료',11,MUTED,.5);
-  this.hint=this.add.text(W/2,864,'화면을 탭하면 물폭탄!',{fontSize:'13px',fontStyle:'bold',color:INK,backgroundColor:'#f4fffcdd',padding:{x:12,y:6}}).setOrigin(.5).setDepth(16);
+  // 왼쪽 아이템은 버튼 탭, 오른쪽 물폭탄은 화면 탭이라 조작이 서로 달라 헷갈렸다. 이제 💣 버튼도
+  // 직접 눌리고(가까운 적에게 날아간다) 화면 탭 조준도 그대로 된다 → 둘 다 알려 준다.
+  this.hint=this.add.text(W/2,864,'화면 탭 또는 💣 버튼!',{fontSize:'13px',fontStyle:'bold',color:INK,backgroundColor:'#f4fffcdd',padding:{x:12,y:6}}).setOrigin(.5).setDepth(16);
   this.time.delayedCall(6000,()=>{if(!this.hint)return;this.tweens.add({targets:this.hint,alpha:0,duration:500,onComplete:()=>{this.hint?.destroy();this.hint=null}})});
   this.warnText=this.add.text(W/2,BASE_LINE-46,'기지가 위험해요!',{fontSize:'23px',fontStyle:'bold',color:'#b65369',stroke:'#fff',strokeThickness:4}).setOrigin(.5).setDepth(15).setVisible(false);
   this.hudItems=[this.hudPanel,this.waveText,this.pauseButton,pauseIcon,this.scoreText,this.coinText,this.comboText,baseLabel,this.hpBar,this.healthValue,this.levelText,this.xpBar,this.xpValue,this.wepHud,this.missionText,this.bombBtn,this.itemBtn,this.bombIcon,this.itemIcon,this.bombLabel,this.itemLabel,this.bombStatus,this.itemStatus,this.hint];
@@ -89,19 +94,21 @@ export function createHudMethods({W,H,BASE_LINE,MISSIONS,BAND,CANVAS_H}){
   rail(this.hpBar,80,54,330,11,hp,hp>.5?0x77ceb2:hp>.25?0xf2c77b:0xee9eaa);
   this.healthValue.setText(`${Math.max(0,Math.ceil(this.baseHp))} / ${this.baseMax}`);
   rail(this.xpBar,80,80,330,7,xp,0xb9a5e9);this.levelText.setText(`Lv.${this.level}`);this.xpValue.setText(`${Math.floor(xp*100)}%`);
-  this.comboText.setText(this.streak>=3?`✦ ${this.streak}연속!`:'');
+  // 배경 알약이 깔려 있어서, 빈 문자열이어도 숨기지 않으면 작은 흰 점이 남는다.
+  const combo=this.streak>=3;this.comboText.setText(combo?`✦ ${this.streak}연속!`:'').setVisible(combo);
   this.missionText.setText('오늘 '+MISSIONS.map(m=>this.settings.completed?.[m.id]?'✓':`${Math.min(m.target,this.missionValue(m))}/${m.target}`).join(' · '));
  },
  updateActionHud(){
   const now=this.time.now,ready=now>=this.bombReadyAt,remaining=Math.max(0,this.bombReadyAt-now),fraction=ready?1:1-remaining/this.bombCd;
   // Card geometry only changes on ready transitions; progress rails remain inexpensive.
-  if(this._bombCardReady!==ready){actionCard(this.bombBtn,W-62,ready,0xe6dcff);this._bombCardReady=ready}
+  if(this._bombCardReady!==ready){actionCard(this.bombBtn,W-62,ready,0x9c5cff);this._bombCardReady=ready}
   rail(this.bombArc,W-62-33,941,66,4,fraction,0xb4a1dd);
   this.bombIcon.setAlpha(ready?1:.48);this.bombLabel.setColor(ready?INK:MUTED);
-  this.bombStatus.setText(ready?'화면 탭으로 사용':`${(remaining/1000).toFixed(1)}초 뒤 준비`);
+  this.bombStatus.setText(ready?'탭해서 사용':`${(remaining/1000).toFixed(1)}초 뒤 준비`);
   if(ready&&!this.bombWasReady&&!this.reducedMotion)this.tweens.add({targets:this.bombIcon,scale:{from:1.12,to:1},duration:200});this.bombWasReady=ready;
   const special=this.special,iready=!special||now>=this.specialReadyAt,left=special?Math.max(0,this.specialReadyAt-now):0;
-  const color={rain:0xdaefff,bolt:0xffedb9,freeze:0xd9f3f7,heal:0xffe1e7}[special?.id]||0xdaefff;
+  // 예전 색(0xd9f3f7 등)은 꺼짐 색(0xe7eeed)과 거의 같아 준비됐는지 분간이 안 됐다. 진한 색으로 바꾼다.
+  const color={rain:0x59c2ff,bolt:0xffd42e,freeze:0x5ad2ef,heal:0xff6b8a}[special?.id]||0x59c2ff;
   const key=`${special?.id}:${iready}`;
   if(this._itemCardKey!==key){actionCard(this.itemBtn,62,iready,color);this._itemCardKey=key}
   rail(this.itemArc,29,941,66,4,iready?1:1-left/special.cd,0x84cabb);

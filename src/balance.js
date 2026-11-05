@@ -2,7 +2,8 @@
 // (예전에는 검증 스크립트가 공식을 따로 적어 두어서, 게임과 다른 숫자를 검사하고도 PASS 했다.)
 
 export const SPAWN_GAP_FLOOR = 220; // ms. 예전 150ms 는 WAVE 6 부터 걸려 8~12 구간이 벽이 됐다.
-export const SPAWN_TOP = -40;       // 적이 생성되는 y
+export const SPAWN_TOP = 36;        // 적이 생성되는 y. 화면 위(-40)에서 만들면 HUD 경계에 반쯤 잘린 채
+                                    // 나타나 보기 나쁘다. 플레이 영역 안쪽에서 통째로 등장시킨다.
 export const BASE_LINE = 812;       // 기지 판정선
 export const RUSH_FROM = BASE_LINE - 230; // 이 아래로 내려오면 속도 1.7배
 export const RUSH_MUL = 1.7;
