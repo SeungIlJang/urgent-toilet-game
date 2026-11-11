@@ -55,7 +55,8 @@ export function createScreenMethods(E){
     text(this,c,153,474,'최고 점수',12,C.muted);text(this,c,153,496,this.bestScore.toLocaleString(),22);
     text(this,c,390,474,'최고 웨이브',12,C.muted);text(this,c,390,496,`${this.bestWave}`,22);
     button(this,c,270,573,460,76,'▶  화장실 지키러 가기',C.mint,()=>this.startGame(),26);
-    text(this,c,270,628,'자동으로 발사해요 · 화면을 탭하면 물폭탄!',14,C.muted);
+    // 물폭탄은 화면 탭뿐 아니라 💣 버튼으로도 쏠 수 있게 바뀌었다. 안내도 둘 다 알려 줘야 한다.
+    text(this,c,270,628,'자동으로 발사해요 · 화면이나 물폭탄 버튼 탭!',14,C.muted);
     button(this,c,150,693,220,66,'💎  영구 강화',C.gold,()=>this.showShop(),20);
     button(this,c,390,693,220,66,'🚽  수비대',C.lilac,()=>this.showCharacters(),20);
     button(this,c,150,773,220,66,'🔫  무기 보관함',C.blue,()=>this.showWeapons(),19);
