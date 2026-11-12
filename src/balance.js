@@ -38,6 +38,15 @@ export const arrivalRate = w => spawnsPerTick(w) / (waveSpawnGap(w) / 1000);
 
 // 보스는 5웨이브마다. 그 사이 웨이브는 잡졸만 나와 보스가 '사건'으로 느껴지게 한다.
 export const BOSS_EVERY = 5;
+
+/* W11 부터는 스폰 간격이 하한(220ms)에 걸려 도착률이 7.8/s 로 고정된다. 그 뒤로는 체력·속도
+   배수만 올라서 후반이 순수 DPS 체크가 됐다 — 못 뚫으면 다음 판도 똑같이 못 뚫는다.
+   엘리트 변종으로 '숫자' 대신 '구성'을 바꿔, 후반에도 대응할 거리를 남긴다. */
+export const ELITE_FROM = 11;
+export const ELITE_CAP = 0.35;
+export const eliteChance = w => w < ELITE_FROM ? 0 : Math.min(ELITE_CAP, (w - ELITE_FROM + 1) * 0.05);
+/** shield: 체력 2.4배 · swift: 속도 1.5배 · splitter: 죽을 때 분열 */
+export const ELITE_KINDS = ['shield', 'swift', 'splitter'];
 export const isBossWave = w => w % BOSS_EVERY === 0;
 /** 보스 종류: 10웨이브마다 정화조, 첫 보스(5)는 소형, 나머지는 대형 */
 export const bossKind = w => (!isBossWave(w) ? null : w % 10 === 0 ? 'septic' : w === BOSS_EVERY ? 'mini' : 'big');

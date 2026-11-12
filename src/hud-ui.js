@@ -63,7 +63,12 @@ export function createHudMethods({W,H,BASE_LINE,MISSIONS,BAND,CANVAS_H,ITEM_MAX,
   const pauseIcon=label(this,484,32,'Ⅱ',20,INK,.5);
   const baseLabel=label(this,30,60,'기지',12,MUTED);
   this.hpBar=this.add.graphics().setDepth(16);
-  this.healthValue=label(this,505,60,'100 / 100',11,MUTED,1);
+  // 기지 수리는 회복 아이템을 대신한다. 기지 체력 옆에 둬야 '무엇을 고치는지'가 바로 읽힌다.
+  this.healthValue=label(this,476,60,'100 / 100',11,MUTED,1);
+  this.repairBtn=this.add.graphics().setDepth(16);
+  this.repairText=label(this,505,60,'🔧1',11,INK,.5);
+  this.repairHit=this.add.rectangle(505,60,48,28,0xffffff,.001).setInteractive({useHandCursor:true}).setDepth(19);
+  this.repairHit.on('pointerdown',e=>{this._uiTap=true;e.event?.stopPropagation?.();this.repairBase()});
   this.levelText=label(this,30,84,'Lv.1',12,'#638a9e');
   this.xpBar=this.add.graphics().setDepth(16);
   this.xpValue=label(this,505,84,'성장',10,MUTED,1);
@@ -96,7 +101,7 @@ export function createHudMethods({W,H,BASE_LINE,MISSIONS,BAND,CANVAS_H,ITEM_MAX,
   this.time.delayedCall(6000,()=>{if(!this.hint)return;this.tweens.add({targets:this.hint,alpha:0,duration:500,onComplete:()=>{this.hint?.destroy();this.hint=null}})});
   this.warnText=this.add.text(W/2,BASE_LINE-46,'기지가 위험해요!',{fontSize:'23px',fontStyle:'bold',color:'#b65369',stroke:'#fff',strokeThickness:4}).setOrigin(.5).setDepth(15).setVisible(false);
   const slotParts=this.slotUi.flatMap(s=>[s.btn,s.icon,s.cool,s.name,s.up]);
-  this.hudItems=[this.hudPanel,this.waveText,this.pauseButton,pauseIcon,this.scoreText,this.coinText,this.comboBox,baseLabel,this.hpBar,this.healthValue,this.levelText,this.xpBar,this.xpValue,this.wepHud,this.missionText,...slotParts,this.hint];
+  this.hudItems=[this.hudPanel,this.waveText,this.pauseButton,pauseIcon,this.scoreText,this.coinText,this.comboBox,baseLabel,this.repairBtn,this.repairText,this.repairHit,this.hpBar,this.healthValue,this.levelText,this.xpBar,this.xpValue,this.wepHud,this.missionText,...slotParts,this.hint];
   // 플레이 영역(540x960)을 캔버스 위쪽 BAND 만큼 아래로 내리고, 비워진 위쪽 띠에 HUD 를 둔다.
   // 메인 카메라는 뷰포트만 내려가므로 월드 좌표(BASE_LINE 등)는 하나도 손대지 않아도 된다.
   // BAND=0(16:9 기기)이면 예전과 똑같이 HUD 가 플레이 영역 위에 겹쳐 그려진다.
@@ -128,6 +133,11 @@ export function createHudMethods({W,H,BASE_LINE,MISSIONS,BAND,CANVAS_H,ITEM_MAX,
   const hp=Math.max(0,Math.min(1,this.baseHp/this.baseMax)),xp=Math.max(0,Math.min(1,this.xp/this.xpNext));
   rail(this.hpBar,80,54,330,11,hp,hp>.5?0x77ceb2:hp>.25?0xf2c77b:0xee9eaa);
   this.healthValue.setText(`${Math.max(0,Math.ceil(this.baseHp))} / ${this.baseMax}`);
+  // 수리 버튼: 남은 횟수가 있고 실제로 다쳐 있을 때만 눈에 띄게 한다.
+  const rep=this.repairs|0,useful=rep>0&&this.baseHp<this.baseMax;
+  this.repairBtn.clear();rounded(this.repairBtn,482,49,46,22,useful?0x8fe3b4:0xe4ebe9,11);
+  this.repairBtn.lineStyle(1.5,useful?0x4fb584:0xd3dedd,.9);this.repairBtn.strokeRoundedRect(482,49,46,22,11);
+  this.repairText.setText(`🔧${rep}`).setColor(useful?'#1c5e42':MUTED);
   rail(this.xpBar,80,80,330,7,xp,0xb9a5e9);this.levelText.setText(`Lv.${this.level}`);this.xpValue.setText(`${Math.floor(xp*100)}%`);
   this.drawCombo();
   this.missionText.setText('오늘 '+MISSIONS.map(m=>this.settings.completed?.[m.id]?'✓':`${Math.min(m.target,this.missionValue(m))}/${m.target}`).join(' · '));
@@ -160,6 +170,13 @@ export function createHudMethods({W,H,BASE_LINE,MISSIONS,BAND,CANVAS_H,ITEM_MAX,
   this.slotUi.forEach((ui,i)=>{
    const slot=this.slots?.[i];
    if(!slot){for(const t of [ui.icon,ui.cool,ui.name,ui.up])t.setText('');ui.btn.clear();ui.cardKey=undefined;return}
+   // 아직 안 열린 칸. 자리는 그대로 두고 잠금만 보여 줘야 레이아웃이 안 흔들린다.
+   if(this.wave<slot.openAt){
+    const key=`lock:${slot.openAt}`;
+    if(ui.cardKey!==key){actionCard(ui.btn,ui.x,ui.y,false,0xd3dedd,this._slotAlpha,{max:true,afford:false});ui.cardKey=key}
+    ui.icon.setText('🔒').setAlpha(.5);ui.cool.setText('');
+    ui.name.setText(`WAVE ${slot.openAt}`).setColor(MUTED);ui.up.setText('잠김').setColor(MUTED);
+    ui.wasReady=false;return}
    // 물폭탄은 강화로 쿨다운이 바뀌므로 판 전체가 공유하는 bombReadyAt/bombCd 를 그대로 본다.
    // 특수 아이템은 칸마다 따로 돌아야 해서 쿨다운을 칸에 들고 있다.
    const bomb=slot.kind==='bomb',readyAt=bomb?this.bombReadyAt:slot.readyAt;

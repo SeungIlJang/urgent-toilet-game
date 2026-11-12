@@ -5,7 +5,7 @@ import { createHudMethods, HUD_BOTTOM, slotRects, CARD_W, CARD_H, UP_W, UP_H, UP
 import { Capacitor } from '@capacitor/core';
 import { AdMob, RewardAdPluginEvents, BannerAdPosition, BannerAdSize } from '@capacitor-community/admob';
 import './style.css';
-import { waveSpawnCount, waveSpawnGap, enemyHpMul, enemySpeedMul, bossKind, SPAWN_TOP, RUSH_FROM, RUSH_MUL,
+import { waveSpawnCount, waveSpawnGap, enemyHpMul, enemySpeedMul, bossKind, eliteChance, ELITE_KINDS, SPAWN_TOP, RUSH_FROM, RUSH_MUL,
   DOUBLE_FROM, DOUBLE_PCT, TRIPLE_FROM, TRIPLE_PCT } from './balance.js';
 
 // AdMob. 실광고는 `VITE_REAL_ADS=1` 로 빌드했을 때만 켜진다(= npm run build:release).
@@ -118,12 +118,19 @@ const UPCARDS = [
   { id:'volley', r:'epic',   icon:'🎆', name:'일제 사격', desc:'탄환 +2발',          apply:s=>{s.runBolts+=2} },
 ];
 // 액션 칸에 들어가는 특수 아이템. 한 판에 이 중 3종이 뽑혀 물폭탄과 함께 네 칸을 채운다.
+// 회복은 여기 없다 — 성격이 달라 기지 수리(🔧)로 분리했다. SPECIALS 는 전부 공격·템포 도구다.
+//   회복은 다쳤을 때만 값이 있어 만피면 한 칸이 죽어 있었고, 수치로도 쉬운 구간(도착률 1.3/s)만
+//   더 쉽게 만들고 어려운 구간(7.8/s)에서는 있으나 마나였다. 난이도 곡선을 거꾸로 건드렸다.
 const SPECIALS = [
-  { id:'rain',   name:'총알비', icon:'🌧️', cd:6000,  color:0x59c2ff },
-  { id:'bolt',   name:'번개',   icon:'⚡',  cd:8000,  color:0xffe14d },
-  { id:'freeze', name:'얼리기', icon:'❄️', cd:9000,  color:0x7fdfff },
-  { id:'heal',   name:'회복',   icon:'❤️', cd:12000, color:0xff6b8a },
+  { id:'rain',   name:'총알비',   icon:'🌧️', cd:6000,  color:0x59c2ff },
+  { id:'bolt',   name:'번개',     icon:'⚡',  cd:8000,  color:0xffe14d },
+  { id:'freeze', name:'얼리기',   icon:'❄️', cd:9000,  color:0x7fdfff },
+  { id:'flush',  name:'물내리기', icon:'🌀', cd:10000, color:0x6fb6ff },
+  { id:'spin',   name:'솔질',     icon:'🧹', cd:7000,  color:0xffa35e },
 ];
+/* 칸이 열리는 웨이브. 물폭탄은 처음부터, 특수 아이템 셋은 하나씩 늘어난다.
+   넷을 한꺼번에 주면 도착률 1.3/s 인 1웨이브가 너무 헐거워지고, 해제의 재미도 없다. */
+const SLOT_OPEN_AT = [1, 2, 4, 7];
 // Purchasable weapons change the firing pattern/feel. basic is free/default.
 // gem = 영구 해금 가격(💎), up = 판 안에서만 유지되는 강화의 기준 가격(🪙).
 // 아이템 강화. 무기(weaponLevels)와 같이 '판 단위'다 — 🪙로 사고, 다음 판에는 Lv.0 부터 시작한다.
@@ -211,7 +218,7 @@ class GameScene extends Phaser.Scene {
     this.bombDmg=this.bombDmgBase;this.bombR=this.bombRBase;this.bombCd=2500;
     this.coinMult=1+this.upg.coin*0.25+(perk==='gold'?1:0);
     this.baseMax=100+this.upg.basehp*30+(perk==='hp'?40:0);
-    Object.assign(this,{state:'ready',score:0,coins:0,kills:0,bombsUsed:0,wave:0,baseHp:this.baseMax,toSpawn:0,spawnGap:900,lastSpawn:0,lastFire:0,bombReadyAt:0,slots:null,freezeUntil:0,streak:0,streakAt:0,_lastWarn:0,level:1,xp:0,xpNext:10,job:'',job2:'',_settled:false,_settleResult:null,revived:false,runDmg:1,runFire:1,runBolts:0,runPierce:0,runExplode:false,runBoltSize:0,runCoinMul:1,upsTaken:[],upCounts:{},rerolls:1});
+    Object.assign(this,{state:'ready',score:0,coins:0,kills:0,bombsUsed:0,wave:0,baseHp:this.baseMax,toSpawn:0,spawnGap:900,lastSpawn:0,lastFire:0,bombReadyAt:0,slots:null,repairs:1,freezeUntil:0,streak:0,streakAt:0,_lastWarn:0,level:1,xp:0,xpNext:10,job:'',job2:'',_settled:false,_settleResult:null,revived:false,runDmg:1,runFire:1,runBolts:0,runPierce:0,runExplode:false,runBoltSize:0,runCoinMul:1,upsTaken:[],upCounts:{},rerolls:1});
     this.enemies=[];this.bolts=[];
     this.bestScore=+this.settings.bestScore||0;this.bestWave=+this.settings.bestWave||0;this.sound=new SoundKit(this.settings);this.events.once('shutdown',()=>this.sound.destroy());
     this.createWorld();this.createHero();this.createHud();this.createInput();this.showStart();this.initAdMob();
@@ -432,8 +439,19 @@ class GameScene extends Phaser.Scene {
   clearBanners(){for(const t of [...(this.liveBanners||[])])t?.destroy?.();this.liveBanners=[]}
   floatText(x,y,label,color){const t=this.add.text(x,y,label,{fontSize:'19px',fontStyle:'900',color:`#${color.toString(16).padStart(6,'0')}`,stroke:'#fff',strokeThickness:4}).setOrigin(.5).setDepth(20);this.tweens.add({targets:t,y:y-46,alpha:0,duration:650,onComplete:()=>t.destroy()})}
   missionValue(m){const p=this.settings.dailyProgress||{};return (p[m.id]||0)+m.value(this)}
+  /* W11 부터 일부 적을 엘리트로 만든다. 숫자(체력·속도 배수)만 올리면 후반이 순수 DPS 체크가
+     되는데, 변종은 '어떻게 상대할지'를 바꾼다 — 단단한 놈은 폭탄, 빠른 놈은 얼리기 식으로.
+     한눈에 알아보게 조금 크게 그리고 색 고리를 둘러 준다. 보상도 3배라 잡을 맛이 있다. */
+  makeElite(e,w){if(e.boss||Math.random()>=eliteChance(w))return;
+    const kind=Phaser.Utils.Array.GetRandom(ELITE_KINDS),color={shield:0x6fa8ff,swift:0xffd24a,splitter:0xc77bff}[kind];
+    e.elite=kind;e.baseScale*=1.18;e.setScale(e.baseScale);
+    if(kind==='shield'){e.hp=Math.round(e.hp*2.4);e.maxHp=e.hp}
+    else if(kind==='swift')e.speed*=1.5;
+    else e.eliteSplit=true;
+    e.reward3x=true;
+    e.ring=this.add.circle(e.x,e.y,30,color,.18).setStrokeStyle(3,color,.75).setDepth(6);}
   addBars(e,w){e.barBg=this.add.rectangle(e.x,e.y,w+2,6,0x000000,.55).setDepth(8).setVisible(false);e.bar=this.add.rectangle(e.x,e.y,w,4,0x37c871).setOrigin(.5).setDepth(9).setVisible(false);e.barW=w}
-  spawnEnemy(){const w=this.wave,pool=['germ','germ','spore'];if(w>=2)pool.push('fly','paper','roll','soap','tissuer');if(w>=3)pool.push('slime','fart','truck','mosquito','tissueb','plunger');if(w>=4)pool.push('roach','fly','sink','soap','mosquito');if(w>=6)pool.push('roach','slime','sink','plunger','tissuer');const key=Phaser.Utils.Array.GetRandom(pool),spec=ENEMIES[key],hp=Math.round(spec.hp*enemyHpMul(w)),e=this.add.sprite(Phaser.Math.Between(70,W-70),SPAWN_TOP,spec.tex).setScale(spec.scale*ART_SCALE).setDepth(7);e.spec=spec;e.tintColor=spec.tint;e.hp=hp;e.maxHp=hp;e.baseScale=spec.scale*ART_SCALE;e.speed=spec.speed*enemySpeedMul(w);e.seed=Phaser.Math.Between(0,628)/100;e.spin=spec.noSpin?0:Phaser.Math.Between(-14,14)/10;e.setAlpha(0);this.tweens.add({targets:e,alpha:1,duration:180});this.addBars(e,38);this.enemies.push(e);if(key==='truck')this.warnEntrance('⚠️ 정화조차 출현!','#ffd24a')}
+  spawnEnemy(){const w=this.wave,pool=['germ','germ','spore'];if(w>=2)pool.push('fly','paper','roll','soap','tissuer');if(w>=3)pool.push('slime','fart','truck','mosquito','tissueb','plunger');if(w>=4)pool.push('roach','fly','sink','soap','mosquito');if(w>=6)pool.push('roach','slime','sink','plunger','tissuer');const key=Phaser.Utils.Array.GetRandom(pool),spec=ENEMIES[key],hp=Math.round(spec.hp*enemyHpMul(w)),e=this.add.sprite(Phaser.Math.Between(70,W-70),SPAWN_TOP,spec.tex).setScale(spec.scale*ART_SCALE).setDepth(7);e.spec=spec;e.tintColor=spec.tint;e.hp=hp;e.maxHp=hp;e.baseScale=spec.scale*ART_SCALE;e.speed=spec.speed*enemySpeedMul(w);e.seed=Phaser.Math.Between(0,628)/100;e.spin=spec.noSpin?0:Phaser.Math.Between(-14,14)/10;this.makeElite(e,w);e.setAlpha(0);this.tweens.add({targets:e,alpha:1,duration:180});this.addBars(e,e.elite?46:38);this.enemies.push(e);if(key==='truck')this.warnEntrance('⚠️ 정화조차 출현!','#ffd24a')}
   warnEntrance(label,color){const now=this.time.now;if(now-(this._lastWarnEnt||0)<2200)return;this._lastWarnEnt=now;this._slowUntil=now+450;this.sound.warn?.();this.sound.vibrate?.([40,30,40]);if(!this.reducedMotion){this.cameras.main.flash(200,255,60,60);this.cameras.main.shake(200,.006)}const t=this.add.text(W/2,220,label,{fontSize:'30px',fontStyle:'900',color:color||'#ff3b6b',stroke:'#2a0a12',strokeThickness:7}).setOrigin(.5).setDepth(30);(this.liveBanners||=[]).push(t);this.tweens.add({targets:t,scale:{from:1.3,to:1},duration:250,ease:'Back.easeOut'});this.tweens.add({targets:t,alpha:0,y:188,delay:750,duration:400,onComplete:()=>{const i=this.liveBanners.indexOf(t);if(i>=0)this.liveBanners.splice(i,1);t.destroy()}})}
   // kind: 'mini'(첫 보스) · 'big'(5웨이브마다) · 'septic'(10웨이브마다). balance.js 의 bossKind() 가 정한다.
   spawnBoss(kind){const w=this.wave,septic=kind==='septic',big=kind==='big'||septic;
@@ -447,15 +465,19 @@ class GameScene extends Phaser.Scene {
   fireWeapon(a){const best=this.nearestEnemy();if(!best)return;const n=a.bolts+(this.runBolts||0);for(let k=0;k<n;k++){const off=n>1?((k/(n-1))-0.5)*(a.wp.spread||0.24):0;this.fireBolt(a,best,off)}}
   fireBolt(a,best,spread){const wp=a.wp,sx=this.heroX,sy=BASE_LINE-46,ang=Phaser.Math.Angle.Between(sx,sy,best.x,best.y)+(spread||0),b=this.add.circle(sx,sy,wp.size+(this.runBoltSize||0),wp.color).setDepth(10);b.setStrokeStyle(3,0xffffff,.7);b.vx=Math.cos(ang)*940;b.vy=Math.sin(ang)*940;b.dmg=Math.max(1,Math.round(this.boltDmg*a.dmgMul*this.jobDmgMul*(this.runDmg||1)));b.pierceLeft=(Math.max(a.pierce,this.jobPierceMin)||1)+(this.runPierce||0);b.explode=wp.explode||this.runExplode;b.miniR=a.miniR;this.bolts.push(b);this.sound.shoot();if(!this.reducedMotion){this.muzzle.setPosition(sx+Math.cos(ang)*20,sy+Math.sin(ang)*20).setRadius(14).setFillStyle(wp.color,.95).setAlpha(1);this.tweens.add({targets:this.muzzle,alpha:0,duration:80,onComplete:()=>this.muzzle.setRadius(0)});this.tweens.add({targets:this.turret,scaleY:{from:.85,to:1},duration:90})}}
   hitEnemy(e,dmg,x,y){e.hp-=dmg;if(e.hp>0)this.sound.hit();e.setTintFill(0xffffff);e.y-=e.boss?1:5;this.time.delayedCall(55,()=>{if(e.active)e.clearTint()});if(!this.reducedMotion){this.fx.emitParticleAt(x||e.x,y||e.y,2);if(e.active&&e.hp>0)this.tweens.add({targets:e,baseScale:{from:e.baseScale*1.16,to:e.baseScale},duration:110})}if(e.hp<=0)this.killEnemy(e)}
-  killEnemy(e){const i=this.enemies.indexOf(e);if(i>=0)this.enemies.splice(i,1);e.bar?.destroy();e.barBg?.destroy();this.kills++;this.streak++;this.streakAt=this.time.now;// 보스가 5웨이브마다로 줄어든 만큼, 보스 1마리의 경험치·점수를 올려 성장 속도를 맞춘다.
+  killEnemy(e){const i=this.enemies.indexOf(e);if(i>=0)this.enemies.splice(i,1);e.bar?.destroy();e.barBg?.destroy();e.ring?.destroy();this.kills++;this.streak++;this.streakAt=this.time.now;// 보스가 5웨이브마다로 줄어든 만큼, 보스 1마리의 경험치·점수를 올려 성장 속도를 맞춘다.
     this.gainXp(e.boss?(e.kind==='septic'?14:e.kind==='big'?10:6):1);const mult=1+Math.floor(this.streak/5);
-    this.score+=(e.boss?(e.kind==='septic'?320:e.kind==='big'?200:70):10)*mult;const c=this.addCoin(e.spec.reward);if(this.jobHeal)this.baseHp=Math.min(this.baseMax,this.baseHp+2);this.sound.kill(!!e.boss);if(!this.reducedMotion){this.fx.emitParticleAt(e.x,e.y,e.boss?(e.big?30:18):12);this.killPop(e.x,e.y,e.tintColor||0xffffff);if(e.boss||this.streak%4===0)this.cameras.main.shake(70,e.boss?0.006:0.0028)}this.floatText(e.x,e.y-8,e.boss?`보스 처치! +🪙${c}`:`+🪙${c}`,e.boss?0xffd24a:0x9be7a0);if(this.streak>0&&this.streak%10===0){this.floatText(this.heroX,BASE_LINE-120,`🔥 ${this.streak}연속!`,0xff9e3d);this.punch(1.04)}if(e.boss){this.punch(e.big?1.07:1.04);if(e.big&&!this.reducedMotion)this.cameras.main.flash(180,255,240,150)}if(e.spec.split){const sp=ENEMIES.germ;for(let k=0;k<2;k++){const me=this.add.sprite(e.x+(k?22:-22),e.y,sp.tex).setScale(sp.scale*.66*ART_SCALE).setDepth(7);me.spec=sp;me.tintColor=sp.tint;me.hp=3;me.maxHp=3;me.baseScale=sp.scale*.66*ART_SCALE;me.speed=120;me.seed=Phaser.Math.Between(0,628)/100;me.spin=Phaser.Math.Between(-30,30)/10;this.addBars(me,26);this.enemies.push(me)}}e.destroy();this.updateHud()}
+    this.score+=(e.boss?(e.kind==='septic'?320:e.kind==='big'?200:70):10)*mult;const c=this.addCoin(e.spec.reward*(e.reward3x?3:1));if(this.jobHeal)this.baseHp=Math.min(this.baseMax,this.baseHp+2);this.sound.kill(!!e.boss);if(!this.reducedMotion){this.fx.emitParticleAt(e.x,e.y,e.boss?(e.big?30:18):12);this.killPop(e.x,e.y,e.tintColor||0xffffff);if(e.boss||this.streak%4===0)this.cameras.main.shake(70,e.boss?0.006:0.0028)}this.floatText(e.x,e.y-8,e.boss?`보스 처치! +🪙${c}`:`+🪙${c}`,e.boss?0xffd24a:0x9be7a0);if(this.streak>0&&this.streak%10===0){this.floatText(this.heroX,BASE_LINE-120,`🔥 ${this.streak}연속!`,0xff9e3d);this.punch(1.04)}if(e.boss){this.repairs++;this.floatText(this.base.x,BASE_LINE-20,'🔧 수리 +1',0x70e1a1);this.punch(e.big?1.07:1.04);if(e.big&&!this.reducedMotion)this.cameras.main.flash(180,255,240,150)}if(e.spec.split||e.eliteSplit){const sp=ENEMIES.germ;for(let k=0;k<2;k++){const me=this.add.sprite(e.x+(k?22:-22),e.y,sp.tex).setScale(sp.scale*.66*ART_SCALE).setDepth(7);me.spec=sp;me.tintColor=sp.tint;me.hp=3;me.maxHp=3;me.baseScale=sp.scale*.66*ART_SCALE;me.speed=120;me.seed=Phaser.Math.Between(0,628)/100;me.spin=Phaser.Math.Between(-30,30)/10;this.addBars(me,26);this.enemies.push(me)}}e.destroy();this.updateHud()}
   throwBomb(x,y){if(this.time.now<this.bombReadyAt)return;if(this.bombTip){this.bombTip.destroy();this.bombTip=null;this.settings.seenBombTip=true;this.persistSettings()}this.bombReadyAt=this.time.now+this.bombCd;this.bombsUsed++;this.explode(x,y);this.updateHud()}
-  baseHit(e){const i=this.enemies.indexOf(e);if(i>=0)this.enemies.splice(i,1);e.bar?.destroy();e.barBg?.destroy();this.baseHp-=e.spec.dmg;this.streak=0;this.sound.hurt();this.sound.vibrate([50,40,50]);if(!this.reducedMotion){this.cameras.main.shake(180,.014);this.cameras.main.flash(140,255,80,80)}this.floatText(this.base.x,BASE_LINE+10,`-${e.spec.dmg}`,0xff5470);e.destroy();this.updateHud();if(this.baseHp<=0)this.gameOver()}
+  baseHit(e){const i=this.enemies.indexOf(e);if(i>=0)this.enemies.splice(i,1);e.bar?.destroy();e.barBg?.destroy();e.ring?.destroy();this.baseHp-=e.spec.dmg;this.streak=0;this.sound.hurt();this.sound.vibrate([50,40,50]);if(!this.reducedMotion){this.cameras.main.shake(180,.014);this.cameras.main.flash(140,255,80,80)}this.floatText(this.base.x,BASE_LINE+10,`-${e.spec.dmg}`,0xff5470);e.destroy();this.updateHud();if(this.baseHp<=0)this.gameOver()}
   startWave(){this.wave++;this.state='playing';this.waveStartCoins=this.coins;const kind=bossKind(this.wave);this.toSpawn=waveSpawnCount(this.wave);this.spawnGap=waveSpawnGap(this.wave);this.lastSpawn=this.time.now;
     // 보스는 5웨이브마다만. 사이 웨이브는 잡졸만 나와 보스전이 '사건'으로 느껴진다.
     if(kind)this.spawnBoss(kind);
-    this.banner(kind==='septic'?`👑 정화조 보스! WAVE ${this.wave}`:kind?`⚠️ 보스 등장! WAVE ${this.wave}`:`WAVE ${this.wave}`,kind==='septic'?'#ffd24a':kind?'#ff7b89':'#ffffff');this.applyTheme(Math.floor((this.wave-1)/3));if(this.wave===1&&!this.settings.seenBombTip)this.showBombTip();this.updateHud()}
+    this.banner(kind==='septic'?`👑 정화조 보스! WAVE ${this.wave}`:kind?`⚠️ 보스 등장! WAVE ${this.wave}`:`WAVE ${this.wave}`,kind==='septic'?'#ffd24a':kind?'#ff7b89':'#ffffff');this.applyTheme(Math.floor((this.wave-1)/3));if(this.wave===1&&!this.settings.seenBombTip)this.showBombTip();
+    // 이번 웨이브에 열리는 칸이 있으면 알려 준다. 웨이브 배너와 겹치지 않게 조금 늦춘다.
+    const opened=(this.slots||[]).filter(s=>s.openAt===this.wave&&s.kind!=='bomb');
+    if(opened.length)this.time.delayedCall(1100,()=>{if(this.state==='playing')this.banner('🔓 새 아이템: '+opened.map(s=>s.name).join(' · '),'#ffd166')});
+    this.updateHud()}
   showBombTip(){if(this.bombTip)return;const c=this.bombTip=this.add.container(W/2,470).setDepth(36);const t1=this.add.text(0,0,'👆',{fontSize:'56px'}).setOrigin(.5);const t2=this.add.text(0,66,'화면을 탭해\n💣 폭탄을 던져요!',{fontSize:'21px',fontStyle:'900',color:'#fff',stroke:'#102238',strokeThickness:6,align:'center',lineSpacing:6}).setOrigin(.5);c.add([t1,t2]);this.tweens.add({targets:c,scale:{from:.9,to:1.08},duration:600,yoyo:true,repeat:-1})}
   // 웨이브를 클리어하면 멈추지 않고 짧은 연출만 두고 다음 웨이브로 넘어간다.
   // 예전에는 정산 오버레이가 매 웨이브 흐름을 끊었다. 거기 있던 기능은 각자 제자리로 옮겼다:
@@ -474,8 +496,11 @@ class GameScene extends Phaser.Scene {
   /* 네 칸을 채운다. 물폭탄은 반드시 한 칸 차지하고, 나머지 세 칸은 특수 아이템 4종 중 3종을
      뽑아 넣는다. 칸 순서까지 섞어서 어느 자리에 무엇이 오는지 판마다 달라진다. */
   pickSlots(){const picked=Phaser.Utils.Array.Shuffle(SPECIALS.slice()).slice(0,3);
-    this.slots=Phaser.Utils.Array.Shuffle([{kind:'bomb',name:'물폭탄',icon:'💣',color:0x9c5cff},
-      ...picked.map(s=>({kind:'special',spec:s,name:s.name,icon:s.icon,color:s.color}))]);
+    const built=[{kind:'bomb',name:'물폭탄',icon:'💣',color:0x9c5cff},
+      ...picked.map(s=>({kind:'special',spec:s,name:s.name,icon:s.icon,color:s.color}))];
+    // 해제 순서는 배열 순서(물폭탄 먼저)로 주고, 자리만 섞는다. 어느 칸이 언제 열릴지도 판마다 다르다.
+    built.forEach((s,i)=>{s.openAt=SLOT_OPEN_AT[i]});
+    this.slots=Phaser.Utils.Array.Shuffle(built);
     for(const s of this.slots){s.readyAt=0;s.lv=0}
     this.applyBombLevel();
     this.banner('🎁 이번 판 아이템: '+picked.map(s=>s.name).join(' · '),'#59c2ff');this.updateActionHud()}
@@ -483,8 +508,15 @@ class GameScene extends Phaser.Scene {
      explode 안에서 매번 레벨을 곱하지 않으므로, 강화 시점에 한 번만 계산하면 된다. */
   applyBombLevel(){const lv=this.slots?.find(s=>s.kind==='bomb')?.lv||0;
     this.bombDmg=Math.round(this.bombDmgBase*(1+lv*.22));this.bombR=Math.round(this.bombRBase*(1+lv*.1))}
+  /* 기지 수리. 쿨다운이 아니라 '횟수'다 — 12초마다 또박또박 차오르면 쉬운 구간이 무적이 되고
+     어려운 구간에서는 어차피 못 따라간다. 횟수로 두면 '지금 쓸까 아껴둘까'가 결정이 된다.
+     판 시작 1회, 보스를 잡을 때마다 +1. */
+  repairBase(){if(this.state!=='playing'||this.repairs<=0)return;if(this.baseHp>=this.baseMax){this.floatText(this.base.x,BASE_LINE+6,'아직 멀쩡해요!',0x9bd7e7);return}
+    this.repairs--;this.baseHp=Math.min(this.baseMax,this.baseHp+Math.round(this.baseMax*.35));
+    this.sound.special('heal');this.floatText(this.base.x,BASE_LINE+6,'🔧 수리!',0x5cff9e);this.banner('🔧 기지 수리!','#70e1a1');
+    this.updateHud()}
   /* 🪙로 그 칸의 아이템을 한 단계 올린다. 모자라거나 만렙이면 아무 일도 없다. */
-  upgradeSlot(i){const slot=this.slots?.[i];if(!slot||slot.lv>=ITEM_MAX)return;
+  upgradeSlot(i){const slot=this.slots?.[i];if(!slot||slot.lv>=ITEM_MAX||this.wave<slot.openAt)return;
     const cost=itemUpCost(slot.lv);if(this.coins<cost)return;
     this.coins-=cost;slot.lv++;this.sound.coin();
     if(slot.kind==='bomb')this.applyBombLevel();
@@ -492,7 +524,7 @@ class GameScene extends Phaser.Scene {
     this.updateHud();this.updateActionHud()}
   /* 탭한 캔버스 좌표가 어느 칸인지. 그림과 같은 slotRects 를 쓰므로 둘이 어긋날 수 없다. */
   slotAt(cx,cy){return SLOT_RECTS.findIndex(r=>Math.abs(cx-r.x)<=CARD_W/2&&cy>=r.y&&cy<=r.y+CARD_H)}
-  activateSlot(i){const slot=this.slots?.[i];if(!slot||this.state!=='playing')return;
+  activateSlot(i){const slot=this.slots?.[i];if(!slot||this.state!=='playing'||this.wave<slot.openAt)return;
     if(slot.kind!=='bomb'){this.activateSpecial(slot);return}
     // 물폭탄 칸은 가장 가까운 적에게 던진다. 적이 없으면 쿨다운을 버리지 않는다.
     const t=this.nearestEnemy();if(t)this.throwBomb(t.x,Phaser.Math.Clamp(t.y,HUD_BOTTOM+6,BASE_LINE-20))}
@@ -502,7 +534,16 @@ class GameScene extends Phaser.Scene {
     if(id==='rain'){const n=16+lv*5;for(let k=0;k<n;k++){const x=Phaser.Math.Between(40,W-40),b=this.add.circle(x,120,6,0x9ad0ff).setStrokeStyle(3,0xffffff,.8).setDepth(10);b.vx=0;b.vy=780;b.dmg=Math.max(2,Math.round(this.boltDmg*(1.1+lv*.25)));b.pierceLeft=1;this.bolts.push(b)}this.banner('🌧️ 총알비!'+tag,'#59c2ff')}
     else if(id==='bolt'){if(!this.reducedMotion)this.cameras.main.flash(160,255,240,150);this.cameras.main.shake(160,.006);for(const e of[...this.enemies])this.hitEnemy(e,Math.max(3,Math.round(this.boltDmg*(3+lv*.8))),e.x,e.y);this.banner('⚡ 번개!'+tag,'#ffe14d')}
     else if(id==='freeze'){this.freezeUntil=this.time.now+3200+lv*700;if(!this.reducedMotion)this.cameras.main.flash(140,150,220,255);this.banner('❄️ 얼리기!'+tag,'#7fdfff')}
-    else if(id==='heal'){this.baseHp=Math.min(this.baseMax,this.baseHp+Math.round(this.baseMax*(.3+lv*.07)));this.floatText(this.base.x,BASE_LINE+6,'+체력!',0x5cff9e);this.banner('❤️ 회복!'+tag,'#ff6b8a')}
+    // 물내리기: 기지 앞까지 온 적을 위로 쓸어 올린다. 피해는 없지만 누수를 직접 되돌려,
+    // 회복을 빼고도 '밀렸을 때 되돌릴 수단'이 남는다.
+    else if(id==='flush'){const push=170+lv*40;for(const e of this.enemies){if(e.boss)continue;e.y=Math.max(SPAWN_TOP,e.y-push)}
+      if(!this.reducedMotion)this.cameras.main.flash(140,150,210,255);this.banner('🌀 물내리기!'+tag,'#6fb6ff')}
+    // 솔질: 기지 둘레만 쓸어 담는다. 사거리가 짧은 대신 자주 쓸 수 있는 근접 정리기.
+    else if(id==='spin'){const r=200+lv*25,dmg=Math.max(3,Math.round(this.boltDmg*(1.8+lv*.4)));
+      const ring=this.add.circle(this.heroX,BASE_LINE-20,10,0xffd9a8,.4).setStrokeStyle(5,0xffa35e).setDepth(12);
+      this.tweens.add({targets:ring,radius:r,alpha:0,duration:320,onComplete:()=>ring.destroy()});
+      for(const e of[...this.enemies])if(Phaser.Math.Distance.Between(this.heroX,BASE_LINE-20,e.x,e.y)<=r)this.hitEnemy(e,dmg,e.x,e.y);
+      this.banner('🧹 솔질!'+tag,'#ffa35e')}
     this.updateHud()}
   quitToStart(){this.pauseOverlay?.destroy();this.pauseOverlay=null;this.settleRun();this.state='over';this.scene.restart({autoStart:false})}
   resumeGame(){if(this.state!=='paused')return;this.pauseOverlay?.destroy();this.pauseOverlay=null;this.state='playing';this.lastSpawn=this.time.now}
@@ -541,7 +582,7 @@ class GameScene extends Phaser.Scene {
     }
     this.showAdFallback(cb)}
   showAdFallback(cb){const ov=this.adOverlay=this.add.container(0,0).setDepth(60);ov.add(this.add.rectangle(W/2,H/2,W,H,0x05060c,.96).setInteractive());ov.add(this.add.text(W/2,H/2-70,'📺 광고',{fontSize:'42px',fontStyle:'900',color:'#fff'}).setOrigin(.5));ov.add(this.add.text(W/2,H/2-16,'광고 재생 중…',{fontSize:'18px',color:'#bfe8ff'}).setOrigin(.5));let t=3;const c2=this.add.text(W/2,H/2+44,`${t}`,{fontSize:'28px',fontStyle:'900',color:'#ffe082'}).setOrigin(.5);ov.add(c2);this.adTimer=this.time.addEvent({delay:1000,repeat:3,callback:()=>{t--;c2.setText(t>0?`${t}`:'✓');if(t<=0){this.adTimer=null;this.adOverlay?.destroy();this.adOverlay=null;cb&&cb()}}})}
-  doRevive(){this.revived=true;this.setHudVisible(true);this.baseHp=Math.max(1,Math.round(this.baseMax*0.5));for(const e of[...this.enemies]){e.bar?.destroy();e.barBg?.destroy();if(!this.reducedMotion)this.fx.emitParticleAt(e.x,e.y,6);e.destroy()}this.enemies=[];if(!this.reducedMotion)this.cameras.main.flash(320,120,255,180);this.sound.win?.();this.punch(1.06);this.banner('✨ 부활! WAVE 다시 시작','#59c2ff');this.toSpawn=0;this.wave--;this.startWave();this.lastFire=this.time.now;this.updateHud()}
+  doRevive(){this.revived=true;this.setHudVisible(true);this.baseHp=Math.max(1,Math.round(this.baseMax*0.5));for(const e of[...this.enemies]){e.bar?.destroy();e.barBg?.destroy();e.ring?.destroy();if(!this.reducedMotion)this.fx.emitParticleAt(e.x,e.y,6);e.destroy()}this.enemies=[];if(!this.reducedMotion)this.cameras.main.flash(320,120,255,180);this.sound.win?.();this.punch(1.06);this.banner('✨ 부활! WAVE 다시 시작','#59c2ff');this.toSpawn=0;this.wave--;this.startWave();this.lastFire=this.time.now;this.updateHud()}
   applyTheme(tier){const t=THEMES[Phaser.Math.Clamp(tier,0,THEMES.length-1)];if(!t)return;this.cameras.main.setBackgroundColor(t.sky);this.sky?.setFillStyle(t.sky);this.bandFill?.setFillStyle(t.sky);this.padFill?.setFillStyle(t.ground);this.groundBand?.setFillStyle(t.ground);this.groundEdge?.setFillStyle(t.edge)}
   persistSettings(){save({...this.settings,soundOn:this.sound.soundOn,vibrationOn:this.sound.vibrationOn})}
   // 타이틀용 말랑한 알약 버튼. 예전엔 회색 네모라 밋밋했다.
@@ -600,7 +641,7 @@ class GameScene extends Phaser.Scene {
       // 동시 스폰 확률은 balance.js 가 정한다. 예전엔 WAVE 5 부터 3연속이 열려 초당 12마리가 쏟아졌다.
       if(this.toSpawn>0&&this.wave>=DOUBLE_FROM&&Phaser.Math.Between(1,100)<=DOUBLE_PCT){this.toSpawn--;this.spawnEnemy();if(this.toSpawn>0&&this.wave>=TRIPLE_FROM&&Phaser.Math.Between(1,100)<=TRIPLE_PCT){this.toSpawn--;this.spawnEnemy()}}}
     for(let i=this.bolts.length-1;i>=0;i--){const b=this.bolts[i];b.x+=b.vx*dt;b.y+=b.vy*dt;if(!this.reducedMotion&&((b._tc=(b._tc||0)+1)%2===0)){const tr=this.add.circle(b.x,b.y,(b.radius||4)*.8,b.fillColor,.4).setDepth(9);this.tweens.add({targets:tr,alpha:0,scale:.2,duration:130,onComplete:()=>tr.destroy()})}let dead=b.y<-30||b.x<-30||b.x>W+30;if(!dead){for(const e of this.enemies){if((!b.hits||!b.hits.has(e))&&Phaser.Math.Distance.Between(b.x,b.y,e.x,e.y)<=e.spec.r){this.hitEnemy(e,b.dmg,b.x,b.y);(b.hits||(b.hits=new Set())).add(e);if(--b.pierceLeft<=0){dead=true;if(b.explode||this.jobExplode)this.miniBlast(b.x,b.y,(b.miniR||72)*(this.jobExplodeBig?1.5:1))}break}}}if(dead){b.destroy();this.bolts.splice(i,1)}}
-    let danger=0;for(let i=this.enemies.length-1;i>=0;i--){const e=this.enemies[i];if(!e.active){this.enemies.splice(i,1);continue}const near=e.y>RUSH_FROM;e.y+=e.speed*(near?RUSH_MUL:1)*(this.time.now<this.freezeUntil?0.32:1)*dt;const amp=e.spec.weave||0.5,per=e.spec.weavePer||500;e.x=Phaser.Math.Clamp(e.x+Math.sin(this.time.now/per+(e.seed||0))*amp,38,W-38);if(!e.boss)e.rotation+=(e.spin||0)*dt*0.35;e.setScale(e.baseScale*(1+Math.sin(this.time.now/180+(e.seed||0))*0.06));const prox=Phaser.Math.Clamp((e.y-(BASE_LINE-300))/300,0,1);if(prox>danger)danger=prox;if(e.bar){const dmgd=e.hp<e.maxHp||e.boss;e.bar.setVisible(dmgd);e.barBg.setVisible(dmgd);e.bar.x=e.x;e.bar.y=e.y-32;e.bar.width=e.barW*Phaser.Math.Clamp(e.hp/e.maxHp,0,1);e.barBg.x=e.x;e.barBg.y=e.y-32}if(e.y>=BASE_LINE)this.baseHit(e)}
+    let danger=0;for(let i=this.enemies.length-1;i>=0;i--){const e=this.enemies[i];if(!e.active){this.enemies.splice(i,1);continue}const near=e.y>RUSH_FROM;e.y+=e.speed*(near?RUSH_MUL:1)*(this.time.now<this.freezeUntil?0.32:1)*dt;const amp=e.spec.weave||0.5,per=e.spec.weavePer||500;e.x=Phaser.Math.Clamp(e.x+Math.sin(this.time.now/per+(e.seed||0))*amp,38,W-38);if(!e.boss)e.rotation+=(e.spin||0)*dt*0.35;e.setScale(e.baseScale*(1+Math.sin(this.time.now/180+(e.seed||0))*0.06));const prox=Phaser.Math.Clamp((e.y-(BASE_LINE-300))/300,0,1);if(prox>danger)danger=prox;if(e.bar){const dmgd=e.hp<e.maxHp||e.boss;e.bar.setVisible(dmgd);e.barBg.setVisible(dmgd);e.bar.x=e.x;e.bar.y=e.y-32;if(e.ring){e.ring.x=e.x;e.ring.y=e.y}e.bar.width=e.barW*Phaser.Math.Clamp(e.hp/e.maxHp,0,1);e.barBg.x=e.x;e.barBg.y=e.y-32}if(e.y>=BASE_LINE)this.baseHit(e)}
     if(this.state==='playing'&&this.toSpawn===0&&this.enemies.length===0){this.score+=100+this.wave*20;this.addCoin(12+this.wave*3)/* 보스가 줄어든 만큼 클리어 보상으로 코인 수급을 보전 */;this.sound.win();this.punch(1.05);this.betweenWaves()}
     const hpDng=1-Phaser.Math.Clamp(this.baseHp/this.baseMax,0,1),dng=Math.max(hpDng,danger*0.85);this.vignette.setAlpha(dng>.4?(dng-.4)/.6*.5:0);this.dangerLine.setAlpha(.25+danger*.6).setScale(1,1+danger*2.5).setFillStyle(0xff2b2b);if(this.comboGlow){const cg=this.streak>=10?(.22+.16*Math.abs(Math.sin(this.time.now/120))):0;this.comboGlow.setStrokeStyle(12,this.streak>=20?0xff5cc8:0xffb03a,cg)}if(danger>.78){this.warnText.setVisible(true).setAlpha(.5+Math.abs(Math.sin(this.time.now/110))*.5);if(this.time.now-this._lastWarn>700){this._lastWarn=this.time.now;this.sound.vibrate(30)}}else this.warnText.setVisible(false);
     this.updateActionHud();

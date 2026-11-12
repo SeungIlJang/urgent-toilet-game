@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   waveSpawnCount, waveSpawnGap, enemyHpMul, enemySpeedMul, reachSeconds, arrivalRate,
   bossKind, isBossWave, SPAWN_GAP_FLOOR, BOSS_EVERY, DOUBLE_FROM, TRIPLE_FROM,
+  eliteChance, ELITE_FROM, ELITE_CAP,
 } from '../src/balance.js';
 
 // 동시 스폰이 열리는 웨이브는 의도된 계단이라 급증 검사에서 뺀다.
@@ -43,4 +44,14 @@ assert.equal(bosses, Math.floor(WAVES / BOSS_EVERY), `보스 수가 ${BOSS_EVERY
 const floorAt = Array.from({ length: WAVES }, (_, i) => i + 1).find(w => waveSpawnGap(w) === SPAWN_GAP_FLOOR);
 console.log(`NOTE: WAVE ${floorAt} 부터 스폰 간격이 하한(${SPAWN_GAP_FLOOR}ms)에 고정됩니다.`);
 console.log(`NOTE: 보스는 ${BOSS_EVERY}웨이브마다 (${[5, 10, 15, 20].map(w => `${w}:${bossKind(w)}`).join(', ')})`);
+// 스폰 간격이 하한에 걸린 뒤로는 엘리트 비율이 유일한 난이도 축이다. 그 비율이 상한을 넘지
+// 않는지, 그리고 하한에 걸리는 웨이브부터 실제로 켜지는지 확인한다.
+assert.ok(eliteChance(ELITE_FROM - 1) === 0, `엘리트가 WAVE ${ELITE_FROM} 이전부터 나옵니다`);
+for (let w = ELITE_FROM; w <= 40; w++) {
+  assert.ok(eliteChance(w) >= eliteChance(w - 1), `WAVE ${w} 에서 엘리트 비율이 줄었습니다`);
+  assert.ok(eliteChance(w) <= ELITE_CAP, `WAVE ${w} 엘리트 비율이 상한을 넘었습니다`);
+}
+assert.ok(ELITE_FROM <= floorAt + 1, `엘리트가 스폰 간격 하한(WAVE ${floorAt}) 뒤에 너무 늦게 켜집니다`);
+console.log(`NOTE: 엘리트 변종은 WAVE ${ELITE_FROM} 부터 ${(eliteChance(ELITE_FROM) * 100).toFixed(0)}% → ` +
+  `상한 ${(ELITE_CAP * 100).toFixed(0)}% (WAVE ${ELITE_FROM + ELITE_CAP / 0.05 - 1} 이후)`);
 console.log('PASS: 적 수/체력 단조 증가, 등장 속도 상한·급증 없음, 기지 도달 시간 확보, 보스 주기 일치');

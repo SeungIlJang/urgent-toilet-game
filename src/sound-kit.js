@@ -134,7 +134,9 @@ export class SoundKit {
   hurt(){this.play('hurt',.20,true)}
   win(){this.play('win',.40,true)}
   warn(){this.play('warn',.65,true)}
-  special(id){if(['rain','bolt','freeze','heal'].includes(id))this.play(id,.20,true)}
+  // 새로 들어온 물내리기·솔질은 전용 음원이 없다. 성격이 가까운 기존 소리를 빌려 쓴다
+  // (물내리기는 물소리, 솔질은 터지는 소리). 음원이 생기면 여기만 고치면 된다.
+  special(id){const name={rain:'rain',bolt:'bolt',freeze:'freeze',heal:'heal',flush:'rain',spin:'boom'}[id];if(name)this.play(name,.20,true)}
   vibrate(pattern){if(this.vibrationOn)globalThis.navigator?.vibrate?.(pattern)}
   destroy(){
     this.disposed=true;
