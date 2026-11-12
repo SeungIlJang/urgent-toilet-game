@@ -242,17 +242,17 @@ v1.2.0
 ```
 v1.2.0
 [New]
-- 🌏 English, 한국어, 日本語 — follows your device, changeable in Settings
-- Four item slots! A bomb plus three specials, shuffled every run
-- Level your items up to Lv.8 with the coins you earn
-- Two new items — 🌀 Flush pushes enemies back, 🧹 Brush hits around the base
-- 🔧 Base repair is now a limited charge; each boss gives you one more
-- 👑 Elite variants from wave 11 — tanky, swift and splitting
+- 🌏 English, 한국어, 日本語 — auto by device, changeable in Settings
+- Four item slots: a bomb plus three specials, shuffled each run
+- Level items to Lv.8 with coins you earn
+- New: 🌀 Flush pushes enemies back, 🧹 Brush hits near the base
+- 🔧 Base repair is a limited charge; each boss grants one
+- 👑 Elites from wave 11 — tanky, swift, splitting
 
 [Improved]
-- Combo counter is a tiered badge now, readable on any background
-- Item slots unlock one at a time as you survive
-- Late-game tuned — waves past 11 were far too easy
+- Combo counter is now a tiered badge
+- Item slots unlock one at a time
+- Late game tuned — waves past 11 were too easy
 ```
 
 **ja-JP**
