@@ -7,11 +7,17 @@ function label(s,x,y,value,size=16,color=INK,origin=.0){return s.add.text(x,y,va
 function rounded(g,x,y,w,h,color,r=12,alpha=1){g.fillStyle(color,alpha);g.fillRoundedRect(x,y,w,h,Math.min(r,w/2,h/2))}
 function rail(g,x,y,w,h,fraction,color){g.clear();rounded(g,x,y,w,h,0xe3efec,h/2);const n=w*Math.max(0,Math.min(1,fraction));if(n>0)rounded(g,x,y,n,h,color,h/2)}
 export const CARD_W=104, CARD_H=106;
-function actionCard(g,x,y,ready,color,alpha=1){
+// 카드 안 강화 버튼의 자리(카드 위쪽 y 기준). main.js 의 탭 판정이 같은 값을 쓴다.
+export const UP_W=92, UP_H=22, UP_DY=78;
+function actionCard(g,x,y,ready,color,alpha,up){
  g.clear();rounded(g,x-52,y+6,CARD_W,CARD_H,0x264c57,24,.12*alpha);rounded(g,x-52,y,CARD_W,CARD_H,0xf8fffc,24,alpha);
  g.lineStyle(2,ready?0xc1e7de:0xd6e3e2);g.strokeRoundedRect(x-52,y,CARD_W,CARD_H,24);
- rounded(g,x-39,y+10,78,53,ready?color:0xd3dedd,17);
- g.lineStyle(2,0xffffff,.85);g.strokeRoundedRect(x-39,y+10,78,53,17);
+ rounded(g,x-39,y+8,78,48,ready?color:0xd3dedd,16);
+ g.lineStyle(2,0xffffff,.85);g.strokeRoundedRect(x-39,y+8,78,48,16);
+ // 강화 버튼. 살 수 있으면 코인색(금), 🪙이 모자라거나 만렙이면 눌러도 소용없다는 뜻으로 회색.
+ const fill=up.max||!up.afford?0xe4ebe9:0xffd166, edge=up.max||!up.afford?0xd3dedd:0xe0a92c;
+ rounded(g,x-UP_W/2,y+UP_DY,UP_W,UP_H,fill,UP_H/2);
+ g.lineStyle(1.5,edge,.9);g.strokeRoundedRect(x-UP_W/2,y+UP_DY,UP_W,UP_H,UP_H/2);
 }
 /**
  * 액션 칸 4개(2x2)의 캔버스 좌표. 아랫줄은 화면 맨 아래에 붙여, 세로가 긴 기기에서 플레이
@@ -23,11 +29,21 @@ export function slotRects(W,CANVAS_H){
  const GAP=8, row2=Math.min(CANVAS_H-10-CARD_H, 840+GAP+CARD_H), row1=Math.min(840, row2-GAP-CARD_H);
  return [[62,row1],[W-62,row1],[62,row2],[W-62,row2]].map(([x,y])=>({x,y}));
 }
+// 연속 처치 뱃지의 단계. 테마 하늘색이 밝은 하늘부터 거의 검정까지 바뀌는데 예전의 흰 반투명
+// 알약은 어두운 테마에서 허옇게 들떠 보였다. 연속 수가 오를수록 색과 아이콘이 바뀌는 뱃지로 바꿨다.
+const COMBO_TIERS=[
+ {from:3,  fill:0x5ad2ef, edge:0x2b9fc0, icon:'✦'},
+ {from:6,  fill:0x6fd98a, edge:0x3da85c, icon:'✦'},
+ {from:10, fill:0xff8fc0, edge:0xdb5f97, icon:'★'},
+ {from:16, fill:0xb47bff, edge:0x8549d6, icon:'★'},
+ {from:25, fill:0xffc23d, edge:0xdb9413, icon:'👑'},
+];
+const comboTier=n=>{let t=COMBO_TIERS[0];for(const c of COMBO_TIERS)if(n>=c.from)t=c;return t};
 function pin(s,o){
  if(!o||!s.hudCamera)return;o.cameraFilter|=s.cameras.main.id;o.cameraFilter&=~s.hudCamera.id;
  if(o.list)for(const child of o.list)pin(s,child);
 }
-export function createHudMethods({W,H,BASE_LINE,MISSIONS,BAND,CANVAS_H}){
+export function createHudMethods({W,H,BASE_LINE,MISSIONS,BAND,CANVAS_H,ITEM_MAX,itemUpCost}){
  return {
  createHud(){
   this.hudCamera=null;
@@ -54,19 +70,21 @@ export function createHudMethods({W,H,BASE_LINE,MISSIONS,BAND,CANVAS_H}){
   this.wepHud=this.add.container(0,0).setDepth(16);this.buildWeaponHud();
   this.missionText=label(this,505,104,'',10,MUTED,1);
   // 콤보는 가끔 뜨는 축하 문구라 패널 안에 자리를 잡아두지 않고 바로 아래에 띄운다.
-  // 이 자리는 기기에 따라 위쪽 띠와 벽 타일의 경계(y=BAND)와 겹칠 수 있어, 글자가 반씩 잘려 보인다.
-  // 어느 쪽에 걸리든 읽히도록 반투명 알약 배경을 깔아 둔다.
-  this.comboText=label(this,W/2,HUD_BOTTOM+16,'',15,'#bd7650',.5);
-  this.comboText.setBackgroundColor('#f4fffccc');
+  // 뱃지와 글자를 한 컨테이너에 담아, 숫자가 오를 때 통째로 통통 튀게 한다.
+  this.comboBox=this.add.container(W/2,HUD_BOTTOM+20).setDepth(16).setVisible(false);
+  this.comboBadge=this.add.graphics();
+  this.comboText=this.add.text(0,0,'',{fontFamily:'"Malgun Gothic", "Apple SD Gothic Neo", sans-serif',fontSize:'16px',fontStyle:'900',color:'#ffffff',stroke:'#20414f',strokeThickness:4}).setOrigin(.5);
+  this.comboBox.add([this.comboBadge,this.comboText]);
   // 액션 칸 4개. 어떤 칸에 무엇이 들어가는지는 판마다 달라지므로(main.js pickSlots),
   // 여기서는 빈 칸 네 개만 만들어 두고 내용은 updateActionHud 가 채운다.
   this.slotUi=slotRects(W,CANVAS_H).map(({x,y})=>({
    x,y,
    btn:this.add.graphics().setDepth(15),
-   arc:this.add.graphics().setDepth(16),
-   icon:label(this,x,y+36,'',29,INK,.5),
-   name:label(this,x,y+73,'',16,INK,.5),
-   status:label(this,x,y+93,'',11,MUTED,.5),
+   icon:label(this,x,y+32,'',26,INK,.5),
+   // 남은 쿨다운은 아이콘 타일 위에 큰 숫자로 겹쳐 보여 준다. 카드 아래쪽은 강화 버튼이 쓴다.
+   cool:this.add.text(x,y+32,'',{fontFamily:'"Malgun Gothic", "Apple SD Gothic Neo", sans-serif',fontSize:'19px',fontStyle:'900',color:'#ffffff',stroke:'#2b4a5c',strokeThickness:4}).setOrigin(.5).setDepth(18),
+   name:label(this,x,y+66,'',13,INK,.5),
+   up:label(this,x,y+UP_DY+UP_H/2,'',11,INK,.5),
    cardKey:undefined, wasReady:false,
   }));
   // 아래 빈 공간이 없는 기기(16:9·태블릿)에서는 두 줄이 위로 밀려 올라와 플레이 영역을 덮는다.
@@ -77,8 +95,8 @@ export function createHudMethods({W,H,BASE_LINE,MISSIONS,BAND,CANVAS_H}){
   this.hint=this.add.text(W/2,this.slotUi[0].y-22,'빈 화면을 탭해도 물폭탄!',{fontSize:'13px',fontStyle:'bold',color:INK,backgroundColor:'#f4fffcdd',padding:{x:12,y:6}}).setOrigin(.5).setDepth(16);
   this.time.delayedCall(6000,()=>{if(!this.hint)return;this.tweens.add({targets:this.hint,alpha:0,duration:500,onComplete:()=>{this.hint?.destroy();this.hint=null}})});
   this.warnText=this.add.text(W/2,BASE_LINE-46,'기지가 위험해요!',{fontSize:'23px',fontStyle:'bold',color:'#b65369',stroke:'#fff',strokeThickness:4}).setOrigin(.5).setDepth(15).setVisible(false);
-  const slotParts=this.slotUi.flatMap(s=>[s.btn,s.arc,s.icon,s.name,s.status]);
-  this.hudItems=[this.hudPanel,this.waveText,this.pauseButton,pauseIcon,this.scoreText,this.coinText,this.comboText,baseLabel,this.hpBar,this.healthValue,this.levelText,this.xpBar,this.xpValue,this.wepHud,this.missionText,...slotParts,this.hint];
+  const slotParts=this.slotUi.flatMap(s=>[s.btn,s.icon,s.cool,s.name,s.up]);
+  this.hudItems=[this.hudPanel,this.waveText,this.pauseButton,pauseIcon,this.scoreText,this.coinText,this.comboBox,baseLabel,this.hpBar,this.healthValue,this.levelText,this.xpBar,this.xpValue,this.wepHud,this.missionText,...slotParts,this.hint];
   // 플레이 영역(540x960)을 캔버스 위쪽 BAND 만큼 아래로 내리고, 비워진 위쪽 띠에 HUD 를 둔다.
   // 메인 카메라는 뷰포트만 내려가므로 월드 좌표(BASE_LINE 등)는 하나도 손대지 않아도 된다.
   // BAND=0(16:9 기기)이면 예전과 똑같이 HUD 가 플레이 영역 위에 겹쳐 그려진다.
@@ -111,27 +129,49 @@ export function createHudMethods({W,H,BASE_LINE,MISSIONS,BAND,CANVAS_H}){
   rail(this.hpBar,80,54,330,11,hp,hp>.5?0x77ceb2:hp>.25?0xf2c77b:0xee9eaa);
   this.healthValue.setText(`${Math.max(0,Math.ceil(this.baseHp))} / ${this.baseMax}`);
   rail(this.xpBar,80,80,330,7,xp,0xb9a5e9);this.levelText.setText(`Lv.${this.level}`);this.xpValue.setText(`${Math.floor(xp*100)}%`);
-  // 배경 알약이 깔려 있어서, 빈 문자열이어도 숨기지 않으면 작은 흰 점이 남는다.
-  const combo=this.streak>=3;this.comboText.setText(combo?`✦ ${this.streak}연속!`:'').setVisible(combo);
+  this.drawCombo();
   this.missionText.setText('오늘 '+MISSIONS.map(m=>this.settings.completed?.[m.id]?'✓':`${Math.min(m.target,this.missionValue(m))}/${m.target}`).join(' · '));
+ },
+ /* 연속 처치 뱃지. 숫자가 바뀔 때만 다시 그리고 통통 튀는 연출을 넣는다. 매 프레임
+    그래픽을 새로 그리면 비싸고, 연출도 끊기지 않고 계속 재시작돼 버린다. */
+ drawCombo(){
+  const n=this.streak;
+  if(n<3){if(this._comboN){this.comboBox.setVisible(false);this._comboN=0}return}
+  if(n===this._comboN)return;
+  const tier=comboTier(n);
+  this.comboText.setText(`${tier.icon} ${n}연속!`);
+  const w=Math.max(100,this.comboText.width+28),h=32;
+  this.comboBadge.clear();
+  rounded(this.comboBadge,-w/2,-h/2+4,w,h,0x16323f,h/2,.22);           // 바닥 그림자
+  rounded(this.comboBadge,-w/2,-h/2,w,h,tier.fill,h/2);                // 알약 본체
+  rounded(this.comboBadge,-w/2+5,-h/2+4,w-10,h*.42,0xffffff,h/2,.3);   // 위쪽 광택
+  this.comboBadge.lineStyle(2,tier.edge,.95);this.comboBadge.strokeRoundedRect(-w/2,-h/2,w,h,h/2);
+  // 오버레이가 떠서 HUD 를 숨긴 동안에는 혼자 다시 나타나면 안 된다.
+  this.comboBox.setVisible(this._hudShown!==false);
+  if(!this.reducedMotion){
+   this.tweens.killTweensOf(this.comboBox);this.comboBox.setScale(1);
+   this.tweens.add({targets:this.comboBox,scale:{from:1.28,to:1},duration:260,ease:'Back.easeOut'});
+  }
+  this._comboN=n;
  },
  updateActionHud(){
   if(!this.slotUi)return;
   const now=this.time.now;
   this.slotUi.forEach((ui,i)=>{
    const slot=this.slots?.[i];
-   if(!slot){ui.icon.setText('');ui.name.setText('');ui.status.setText('');ui.btn.clear();ui.arc.clear();ui.cardKey=undefined;return}
+   if(!slot){for(const t of [ui.icon,ui.cool,ui.name,ui.up])t.setText('');ui.btn.clear();ui.cardKey=undefined;return}
    // 물폭탄은 강화로 쿨다운이 바뀌므로 판 전체가 공유하는 bombReadyAt/bombCd 를 그대로 본다.
    // 특수 아이템은 칸마다 따로 돌아야 해서 쿨다운을 칸에 들고 있다.
-   const bomb=slot.kind==='bomb',cd=bomb?this.bombCd:slot.spec.cd,readyAt=bomb?this.bombReadyAt:slot.readyAt;
+   const bomb=slot.kind==='bomb',readyAt=bomb?this.bombReadyAt:slot.readyAt;
    const ready=now>=readyAt,left=Math.max(0,readyAt-now);
-   // 칸 모양은 준비 상태가 바뀔 때만 다시 그린다. 매 프레임 그리면 비싸다.
-   const key=`${slot.name}:${ready}`;
-   if(ui.cardKey!==key){actionCard(ui.btn,ui.x,ui.y,ready,slot.color,this._slotAlpha);ui.cardKey=key}
-   rail(ui.arc,ui.x-33,ui.y+101,66,4,ready?1:1-left/cd,bomb?0xb4a1dd:0x84cabb);
-   ui.icon.setText(slot.icon).setAlpha(ready?1:.48);
+   const max=slot.lv>=ITEM_MAX,cost=max?0:itemUpCost(slot.lv),afford=!max&&this.coins>=cost;
+   // 카드 그림은 보이는 상태가 바뀔 때만 다시 그린다. 매 프레임 그리면 비싸다.
+   const key=`${slot.name}:${ready}:${slot.lv}:${max||afford}`;
+   if(ui.cardKey!==key){actionCard(ui.btn,ui.x,ui.y,ready,slot.color,this._slotAlpha,{max,afford});ui.cardKey=key}
+   ui.icon.setText(slot.icon).setAlpha(ready?1:.3);
+   ui.cool.setText(ready?'':(left/1000).toFixed(1));
    ui.name.setText(slot.name).setColor(ready?INK:MUTED);
-   ui.status.setText(ready?'탭해서 사용':`${(left/1000).toFixed(1)}초 뒤 준비`);
+   ui.up.setText(max?`Lv.${ITEM_MAX} MAX`:`Lv.${slot.lv} · ${cost}🪙`).setColor(afford?'#7a5a12':MUTED);
    if(ready&&!ui.wasReady&&!this.reducedMotion)this.tweens.add({targets:ui.icon,scale:{from:1.12,to:1},duration:200});
    ui.wasReady=ready;
   });
