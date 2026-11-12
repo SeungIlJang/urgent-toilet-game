@@ -1,4 +1,4 @@
-// 지갑 분리 규칙을 실제 빌드(www/game.html)를 돌려 확인한다.
+// 지갑 분리 규칙을 방금 만든 빌드(dist/index.html)를 돌려 확인한다.
 //   🪙 코인 = 판 안에서만 (무기 강화). 판이 끝나면 사라진다.
 //   💎 보석 = 영구 (영구 강화·스킨·무기 해금). 죽어도 남는다.
 // 한 줄만 잘못 건드려도 "죽으면 전부 0" 이던 예전 동작으로 되돌아가므로 빌드 게이트로 둔다.
@@ -11,11 +11,13 @@ import puppeteer from 'puppeteer-core';
 import { findBrowser } from './browser-path.mjs';
 
 const EDGE = findBrowser();
-const ROOT = fileURLToPath(new URL('../www/', import.meta.url));
+// 방금 만든 산출물(dist)을 검사한다. www/game.html 은 실광고 릴리스 때만 갱신되므로,
+// 거기를 보면 테스트 빌드에서 옛 번들을 검사하고 PASS 하게 된다.
+const ROOT = fileURLToPath(new URL('../dist/', import.meta.url));
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png' };
 
 const server = http.createServer(async (req, res) => {
-  const rel = decodeURIComponent(req.url.split('?')[0]).replace(/^\/+/, '') || 'game.html';
+  const rel = decodeURIComponent(req.url.split('?')[0]).replace(/^\/+/, '') || 'index.html';
   if (rel === 'favicon.ico') { res.writeHead(204); res.end(); return; }
   const body = await readFile(path.join(ROOT, rel)).catch(() => null);
   if (!body) { res.writeHead(404); res.end('nf'); return; }
@@ -40,7 +42,7 @@ await page.evaluateOnNewDocument(() => {
     lastAttend: new Date().toLocaleDateString('sv-SE'), attendStreak: 1,
   }));
 });
-await page.goto(`http://localhost:${port}/game.html`, { waitUntil: 'load' });
+await page.goto(`http://localhost:${port}/index.html`, { waitUntil: 'load' });
 await page.waitForFunction('!!window.__game && !!window.__game.scene.scenes[0].hero', { timeout: 15000 });
 
 const result = await page.evaluate(async () => {

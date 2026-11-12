@@ -35,6 +35,15 @@ if (manifestName) {
   await writeFile(new URL(`../www/${manifestName}`, import.meta.url), manifest);
 }
 
-await writeFile(target, built);
-console.log(`PASS: dist/index.html -> www/game.html (${(built.length / 1024).toFixed(0)} KB)` +
-  `${manifestName ? ` + ${manifestName}` : ''}, OTA 로더 보존, ${want}`);
+// www/game.html 은 앱에 박히는 오프라인 폴백이다. 즉 '릴리스 산출물'이지 매 빌드 산출물이 아니다.
+// 예전에는 평범한 npm run build(테스트 광고)도 이 파일을 덮어써서, 릴리스용으로 넣어 둔 실광고본이
+// 커밋 네 번에 걸쳐 조용히 테스트광고본으로 되돌아간 적이 있다(2026-11-12 발견). 그래서 실광고
+// 빌드일 때만 쓴다. 테스트 빌드는 dist/ 에만 남고, 검증 게이트도 dist 를 본다.
+if (!wantReal) {
+  console.log('SKIP: www/game.html 은 실광고 릴리스 산출물이라 테스트 빌드로 덮지 않습니다 ' +
+    `(갱신하려면 npm run build:release). 산출물은 dist/index.html 에 있습니다, ${want}`);
+} else {
+  await writeFile(target, built);
+  console.log(`PASS: dist/index.html -> www/game.html (${(built.length / 1024).toFixed(0)} KB)` +
+    `${manifestName ? ` + ${manifestName}` : ''}, OTA 로더 보존, ${want}`);
+}
