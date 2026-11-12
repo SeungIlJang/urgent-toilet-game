@@ -1,9 +1,10 @@
+import { t } from './i18n.js';
 const INK='#264c57',MUTED='#65858d';
 // 상단 정보 패널의 높이와 아래 끝 y. 세로가 긴 기기에서는 패널이 플레이 영역 위쪽 띠(BAND)에
 // 올라가 적을 전혀 가리지 않고, 16:9 에서는 겹치므로 높이를 최소로 줄이고 반투명으로 깐다.
 // main.js 의 입력 데드존이 이 값을 그대로 쓰므로, 바꾸면 양쪽이 같이 움직인다.
 export const HUD_H=104, HUD_BOTTOM=12+HUD_H;
-function label(s,x,y,value,size=16,color=INK,origin=.0){return s.add.text(x,y,value,{fontFamily:'"Malgun Gothic", "Apple SD Gothic Neo", sans-serif',fontSize:size+'px',fontStyle:'bold',color}).setOrigin(origin,.5).setDepth(17)}
+function label(s,x,y,value,size=16,color=INK,origin=.0){return s.add.text(x,y,value,{fontFamily:'"Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans JP", "Hiragino Sans", "Yu Gothic", sans-serif',fontSize:size+'px',fontStyle:'bold',color}).setOrigin(origin,.5).setDepth(17)}
 function rounded(g,x,y,w,h,color,r=12,alpha=1){g.fillStyle(color,alpha);g.fillRoundedRect(x,y,w,h,Math.min(r,w/2,h/2))}
 function rail(g,x,y,w,h,fraction,color){g.clear();rounded(g,x,y,w,h,0xe3efec,h/2);const n=w*Math.max(0,Math.min(1,fraction));if(n>0)rounded(g,x,y,n,h,color,h/2)}
 export const CARD_W=104, CARD_H=106;
@@ -38,7 +39,7 @@ const COMBO_TIERS=[
  {from:16, fill:0xb47bff, edge:0x8549d6, icon:'★'},
  {from:25, fill:0xffc23d, edge:0xdb9413, icon:'👑'},
 ];
-const comboTier=n=>{let t=COMBO_TIERS[0];for(const c of COMBO_TIERS)if(n>=c.from)t=c;return t};
+const comboTier=n=>{let best=COMBO_TIERS[0];for(const c of COMBO_TIERS)if(n>=c.from)best=c;return best};
 function pin(s,o){
  if(!o||!s.hudCamera)return;o.cameraFilter|=s.cameras.main.id;o.cameraFilter&=~s.hudCamera.id;
  if(o.list)for(const child of o.list)pin(s,child);
@@ -56,12 +57,12 @@ export function createHudMethods({W,H,BASE_LINE,MISSIONS,BAND,CANVAS_H,ITEM_MAX,
   rounded(this.hudPanel,302,18,112,28,0xd8f3e9,13);
   rounded(this.hudPanel,459,16,50,32,0xe8e0fa,13);
   // 인게임에 게임 제목을 다시 적을 이유가 없다. 그 줄을 빼고 점수·코인을 올려 패널을 128→104 로 줄였다.
-  this.scoreText=label(this,30,32,'점수 0',17);
+  this.scoreText=label(this,30,32,t('점수 {n}',{n:0}),17);
   this.coinText=label(this,172,32,'🪙 0',16,'#946b24');
   this.waveText=label(this,358,32,'WAVE 1',15,INK,.5);
   this.pauseButton=this.add.rectangle(484,32,50,36,0xffffff,.001).setInteractive({useHandCursor:true}).setDepth(19);
   const pauseIcon=label(this,484,32,'Ⅱ',20,INK,.5);
-  const baseLabel=label(this,30,60,'기지',12,MUTED);
+  const baseLabel=label(this,30,60,t('기지'),12,MUTED);
   this.hpBar=this.add.graphics().setDepth(16);
   // 기지 수리는 회복 아이템을 대신한다. 기지 체력 옆에 둬야 '무엇을 고치는지'가 바로 읽힌다.
   this.healthValue=label(this,462,60,'100 / 100',11,MUTED,1);
@@ -71,14 +72,14 @@ export function createHudMethods({W,H,BASE_LINE,MISSIONS,BAND,CANVAS_H,ITEM_MAX,
   this.repairHit.on('pointerdown',e=>{this._uiTap=true;e.event?.stopPropagation?.();this.repairBase()});
   this.levelText=label(this,30,84,'Lv.1',12,'#638a9e');
   this.xpBar=this.add.graphics().setDepth(16);
-  this.xpValue=label(this,505,84,'성장',10,MUTED,1);
+  this.xpValue=label(this,505,84,t('성장'),10,MUTED,1);
   this.wepHud=this.add.container(0,0).setDepth(16);this.buildWeaponHud();
   this.missionText=label(this,505,104,'',10,MUTED,1);
   // 콤보는 가끔 뜨는 축하 문구라 패널 안에 자리를 잡아두지 않고 바로 아래에 띄운다.
   // 뱃지와 글자를 한 컨테이너에 담아, 숫자가 오를 때 통째로 통통 튀게 한다.
   this.comboBox=this.add.container(W/2,HUD_BOTTOM+20).setDepth(16).setVisible(false);
   this.comboBadge=this.add.graphics();
-  this.comboText=this.add.text(0,0,'',{fontFamily:'"Malgun Gothic", "Apple SD Gothic Neo", sans-serif',fontSize:'16px',fontStyle:'900',color:'#ffffff',stroke:'#20414f',strokeThickness:4}).setOrigin(.5);
+  this.comboText=this.add.text(0,0,'',{fontFamily:'"Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans JP", "Hiragino Sans", "Yu Gothic", sans-serif',fontSize:'16px',fontStyle:'900',color:'#ffffff',stroke:'#20414f',strokeThickness:4}).setOrigin(.5);
   this.comboBox.add([this.comboBadge,this.comboText]);
   // 액션 칸 4개. 어떤 칸에 무엇이 들어가는지는 판마다 달라지므로(main.js pickSlots),
   // 여기서는 빈 칸 네 개만 만들어 두고 내용은 updateActionHud 가 채운다.
@@ -87,7 +88,7 @@ export function createHudMethods({W,H,BASE_LINE,MISSIONS,BAND,CANVAS_H,ITEM_MAX,
    btn:this.add.graphics().setDepth(15),
    icon:label(this,x,y+32,'',26,INK,.5),
    // 남은 쿨다운은 아이콘 타일 위에 큰 숫자로 겹쳐 보여 준다. 카드 아래쪽은 강화 버튼이 쓴다.
-   cool:this.add.text(x,y+32,'',{fontFamily:'"Malgun Gothic", "Apple SD Gothic Neo", sans-serif',fontSize:'19px',fontStyle:'900',color:'#ffffff',stroke:'#2b4a5c',strokeThickness:4}).setOrigin(.5).setDepth(18),
+   cool:this.add.text(x,y+32,'',{fontFamily:'"Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans JP", "Hiragino Sans", "Yu Gothic", sans-serif',fontSize:'19px',fontStyle:'900',color:'#ffffff',stroke:'#2b4a5c',strokeThickness:4}).setOrigin(.5).setDepth(18),
    name:label(this,x,y+66,'',13,INK,.5),
    up:label(this,x,y+UP_DY+UP_H/2,'',11,INK,.5),
    cardKey:undefined, wasReady:false,
@@ -97,9 +98,9 @@ export function createHudMethods({W,H,BASE_LINE,MISSIONS,BAND,CANVAS_H,ITEM_MAX,
   this._slotAlpha=this.slotUi[0].y<840?.8:1;
   // 네 칸은 저마다 '탭해서 사용'이라고 적혀 있으니, 안내는 칸 말고 빈 화면을 눌러도 된다는 것만
   // 알려 주면 된다. 윗줄 칸보다 위에 둬서 주인공 얼굴을 가리지 않게 한다.
-  this.hint=this.add.text(W/2,this.slotUi[0].y-22,'빈 화면을 탭해도 물폭탄!',{fontSize:'13px',fontStyle:'bold',color:INK,backgroundColor:'#f4fffcdd',padding:{x:12,y:6}}).setOrigin(.5).setDepth(16);
+  this.hint=this.add.text(W/2,this.slotUi[0].y-22,t('빈 화면을 탭해도 물폭탄!'),{fontSize:'13px',fontStyle:'bold',color:INK,backgroundColor:'#f4fffcdd',padding:{x:12,y:6}}).setOrigin(.5).setDepth(16);
   this.time.delayedCall(6000,()=>{if(!this.hint)return;this.tweens.add({targets:this.hint,alpha:0,duration:500,onComplete:()=>{this.hint?.destroy();this.hint=null}})});
-  this.warnText=this.add.text(W/2,BASE_LINE-46,'기지가 위험해요!',{fontSize:'23px',fontStyle:'bold',color:'#b65369',stroke:'#fff',strokeThickness:4}).setOrigin(.5).setDepth(15).setVisible(false);
+  this.warnText=this.add.text(W/2,BASE_LINE-46,t('기지가 위험해요!'),{fontSize:'23px',fontStyle:'bold',color:'#b65369',stroke:'#fff',strokeThickness:4}).setOrigin(.5).setDepth(15).setVisible(false);
   const slotParts=this.slotUi.flatMap(s=>[s.btn,s.icon,s.cool,s.name,s.up]);
   this.hudItems=[this.hudPanel,this.waveText,this.pauseButton,pauseIcon,this.scoreText,this.coinText,this.comboBox,baseLabel,this.repairBtn,this.repairText,this.repairHit,this.hpBar,this.healthValue,this.levelText,this.xpBar,this.xpValue,this.wepHud,this.missionText,...slotParts,this.hint];
   // 플레이 영역(540x960)을 캔버스 위쪽 BAND 만큼 아래로 내리고, 비워진 위쪽 띠에 HUD 를 둔다.
@@ -124,12 +125,12 @@ export function createHudMethods({W,H,BASE_LINE,MISSIONS,BAND,CANVAS_H,ITEM_MAX,
   (this.arsenal||[]).slice(0,1).forEach(a=>{
    const g=this.add.graphics();rounded(g,26,94,152,21,0xe7f3ef,10);this.wepHud.add(g);
    this.wepHud.add(this.add.circle(38,104.5,4,a.wp.color).setStrokeStyle(2,0xffffff));
-   const t=this.add.text(48,104.5,`${a.wp.name} · Lv.${a.lv}`,{fontSize:'10px',fontStyle:'bold',color:INK}).setOrigin(0,.5);this.wepHud.add(t);
+   const txt=this.add.text(48,104.5,`${t(a.wp.name)} · Lv.${a.lv}`,{fontSize:'10px',fontStyle:'bold',color:INK}).setOrigin(0,.5);this.wepHud.add(txt);
   });
   pin(this,this.wepHud);
  },
  updateHud(){
-  this.scoreText.setText(`점수 ${this.score.toLocaleString()}`);this.waveText.setText(`WAVE ${this.wave}`);this.coinText.setText(`🪙 ${this.coins.toLocaleString()}`);
+  this.scoreText.setText(t('점수 {n}',{n:this.score.toLocaleString()}));this.waveText.setText(`WAVE ${this.wave}`);this.coinText.setText(`🪙 ${this.coins.toLocaleString()}`);
   const hp=Math.max(0,Math.min(1,this.baseHp/this.baseMax)),xp=Math.max(0,Math.min(1,this.xp/this.xpNext));
   rail(this.hpBar,80,54,330,11,hp,hp>.5?0x77ceb2:hp>.25?0xf2c77b:0xee9eaa);
   this.healthValue.setText(`${Math.max(0,Math.ceil(this.baseHp))} / ${this.baseMax}`);
@@ -142,7 +143,7 @@ export function createHudMethods({W,H,BASE_LINE,MISSIONS,BAND,CANVAS_H,ITEM_MAX,
   this.repairText.setText(rep>0?`🔧${rep}`:`🔧${buyCost}`).setColor(useful?'#1c5e42':canBuy?'#7a5a12':MUTED);
   rail(this.xpBar,80,80,330,7,xp,0xb9a5e9);this.levelText.setText(`Lv.${this.level}`);this.xpValue.setText(`${Math.floor(xp*100)}%`);
   this.drawCombo();
-  this.missionText.setText('오늘 '+MISSIONS.map(m=>this.settings.completed?.[m.id]?'✓':`${Math.min(m.target,this.missionValue(m))}/${m.target}`).join(' · '));
+  this.missionText.setText(t('오늘 {list}',{list:MISSIONS.map(m=>this.settings.completed?.[m.id]?'✓':`${Math.min(m.target,this.missionValue(m))}/${m.target}`).join(' · ')}));
  },
  /* 연속 처치 뱃지. 숫자가 바뀔 때만 다시 그리고 통통 튀는 연출을 넣는다. 매 프레임
     그래픽을 새로 그리면 비싸고, 연출도 끊기지 않고 계속 재시작돼 버린다. */
@@ -151,7 +152,7 @@ export function createHudMethods({W,H,BASE_LINE,MISSIONS,BAND,CANVAS_H,ITEM_MAX,
   if(n<3){if(this._comboN){this.comboBox.setVisible(false);this._comboN=0}return}
   if(n===this._comboN)return;
   const tier=comboTier(n);
-  this.comboText.setText(`${tier.icon} ${n}연속!`);
+  this.comboText.setText(t('{icon} {n}연속!',{icon:tier.icon,n}));
   const w=Math.max(100,this.comboText.width+28),h=32;
   this.comboBadge.clear();
   rounded(this.comboBadge,-w/2,-h/2+4,w,h,0x16323f,h/2,.22);           // 바닥 그림자
@@ -177,7 +178,7 @@ export function createHudMethods({W,H,BASE_LINE,MISSIONS,BAND,CANVAS_H,ITEM_MAX,
     const key=`lock:${slot.openAt}`;
     if(ui.cardKey!==key){actionCard(ui.btn,ui.x,ui.y,false,0xd3dedd,this._slotAlpha,{max:true,afford:false});ui.cardKey=key}
     ui.icon.setText('🔒').setAlpha(.5);ui.cool.setText('');
-    ui.name.setText(`WAVE ${slot.openAt}`).setColor(MUTED);ui.up.setText('잠김').setColor(MUTED);
+    ui.name.setText(`WAVE ${slot.openAt}`).setColor(MUTED);ui.up.setText(t('잠김')).setColor(MUTED);
     ui.wasReady=false;return}
    // 물폭탄은 강화로 쿨다운이 바뀌므로 판 전체가 공유하는 bombReadyAt/bombCd 를 그대로 본다.
    // 특수 아이템은 칸마다 따로 돌아야 해서 쿨다운을 칸에 들고 있다.
@@ -189,7 +190,7 @@ export function createHudMethods({W,H,BASE_LINE,MISSIONS,BAND,CANVAS_H,ITEM_MAX,
    if(ui.cardKey!==key){actionCard(ui.btn,ui.x,ui.y,ready,slot.color,this._slotAlpha,{max,afford});ui.cardKey=key}
    ui.icon.setText(slot.icon).setAlpha(ready?1:.3);
    ui.cool.setText(ready?'':(left/1000).toFixed(1));
-   ui.name.setText(slot.name).setColor(ready?INK:MUTED);
+   ui.name.setText(t(slot.name)).setColor(ready?INK:MUTED);
    ui.up.setText(max?`Lv.${ITEM_MAX} MAX`:`Lv.${slot.lv} · ${cost}🪙`).setColor(afford?'#7a5a12':MUTED);
    if(ready&&!ui.wasReady&&!this.reducedMotion)this.tweens.add({targets:ui.icon,scale:{from:1.12,to:1},duration:200});
    ui.wasReady=ready;
