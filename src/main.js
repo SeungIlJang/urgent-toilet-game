@@ -128,8 +128,11 @@ const SPECIALS = [
 // gem = 영구 해금 가격(💎), up = 판 안에서만 유지되는 강화의 기준 가격(🪙).
 // 아이템 강화. 무기(weaponLevels)와 같이 '판 단위'다 — 🪙로 사고, 다음 판에는 Lv.0 부터 시작한다.
 // 영구로 남기려면 💎로 사야 하는데, 그건 타이틀의 영구 강화가 맡는 자리다.
+// 단가 90 일 때는 하나 만렙에 2,430 🪙 이었는데, W10 까지 쉬지 않고 벌어도 누적 수입이
+// 2,049 였다. 투자처는 아이템 4 + 무기 1 로 다섯인데 한 군데도 못 채우니, 네 칸 중 세 칸은
+// 늘 회색으로 남았다. 45 로 내려 하나 만렙을 1,215 로 만든다 — W8 쯤이면 한 칸은 채운다.
 const ITEM_MAX = 5;
-const itemUpCost = lvl => Math.round(90 * (lvl + 1) * (1 + lvl * 0.3));
+const itemUpCost = lvl => Math.round(45 * (lvl + 1) * (1 + lvl * 0.3));
 const WEAPONS = [
   { id: 'basic', name: '기본 볼트', desc: '균형 잡힌 단발', gem: 0, up: 130, bolts: 1, spread: 0, pierce: 1, dmg: 1, fire: 1, color: 0xfff6cf, size: 8, upDesc: '데미지+ · 연사+' },
   { id: 'shotgun', name: '산탄총', desc: '3발 부채꼴 발사', gem: 90, up: 235, bolts: 3, spread: 0.22, pierce: 1, dmg: 0.75, fire: 1.2, color: 0xffb347, size: 7, upDesc: '데미지+ · 3Lv마다 탄+1' },
