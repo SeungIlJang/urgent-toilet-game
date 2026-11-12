@@ -3,7 +3,7 @@
 // 캔버스 크기(540x960)로 뷰포트를 맞춰 1:1 로 캡처하므로 확대/여백 없이 게임 화면만 나온다.
 // 저장 데이터는 evaluateOnNewDocument 로 미리 심어, 매번 같은 화면이 나오게 한다.
 import http from 'node:http';
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import puppeteer from 'puppeteer-core';
@@ -15,6 +15,10 @@ const ROOT = fileURLToPath(new URL('../www/', import.meta.url));
 const FALLBACK = fileURLToPath(new URL('../public/', import.meta.url));
 const OUT = fileURLToPath(new URL('../store-assets/', import.meta.url));
 const W = 540, H = 960;
+// 게임이 세 언어를 지원하므로 스토어 스크린샷도 언어별로 찍는다. Play Console 은 등록정보
+// 언어마다 스크린샷을 따로 받는다 — 영어 등록정보에 한국어 화면을 올릴 이유가 없다.
+const LANGS = process.argv.slice(2).filter(a => !a.startsWith('--'));
+const SHOOT = LANGS.length ? LANGS : ['ko', 'en', 'ja'];
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 const missing = new Set(); // 404 가 난 경로. 어떤 파일이 빠졌는지 보고에 쓴다.
@@ -131,12 +135,18 @@ const pageErrors = [];
 page.on('pageerror', e => pageErrors.push(e.message));
 page.on('console', m => { if (m.type() === 'error') pageErrors.push(m.text()); });
 
+// 화면 구성 헬퍼는 모든 샷이 공유한다.
+await page.evaluateOnNewDocument(`window.__midRun = ${midRun.toString()}; window.__combat = ${combatScene.toString()};`);
+
+for (const lang of SHOOT) {
+// 저장값에 언어를 심어 두면 게임이 그 언어로 뜬다. 언어마다 폴더를 나눈다.
+const dir = new URL(`../store-assets/${lang}/`, import.meta.url);
+await mkdir(dir, { recursive: true });
 await page.evaluateOnNewDocument(save => {
   const today = new Date().toLocaleDateString('sv-SE');
   localStorage.setItem('urgentDefenseV1', JSON.stringify({ ...save, missionDay: today }));
-}, SAVE);
-// 화면 구성 헬퍼는 모든 샷이 공유한다.
-await page.evaluateOnNewDocument(`window.__midRun = ${midRun.toString()}; window.__combat = ${combatScene.toString()};`);
+}, { ...SAVE, lang });
+console.log(`\n[${lang}]`);
 
 for (const shot of SHOTS) {
   await page.goto(`http://localhost:${port}/game.html`, { waitUntil: 'load' });
@@ -157,10 +167,11 @@ for (const shot of SHOTS) {
     const r = c.getBoundingClientRect();
     return { x: Math.round(r.x), y: Math.round(r.y), width: Math.round(r.width), height: Math.round(r.height) };
   });
-  const file = path.join(OUT, shot.name + '.png');
+  const file = path.join(fileURLToPath(dir), shot.name + '.png');
   await page.screenshot({ path: file, type: 'png', clip });
   const png = await readFile(file);
-  console.log(`${shot.name}.png  ${png.readUInt32BE(16)}x${png.readUInt32BE(20)}  ${(png.length / 1024).toFixed(0)} KB`);
+  console.log(`  ${shot.name}.png  ${png.readUInt32BE(16)}x${png.readUInt32BE(20)}  ${(png.length / 1024).toFixed(0)} KB`);
+}
 }
 
 await browser.close();
@@ -171,4 +182,5 @@ if (pageErrors.length) {
   console.error('\n페이지 오류:\n' + pageErrors.slice(0, 5).map(e => ' - ' + e).join('\n'));
   process.exit(1);
 }
-console.log(`\nPASS: ${SHOTS.length}장 저장 (store-assets/), 페이지 오류 없음`);
+console.log(`\nPASS: ${SHOOT.length}개 언어 × ${SHOTS.length}장 = ${SHOOT.length * SHOTS.length}장 저장 ` +
+  `(store-assets/{${SHOOT.join(',')}}/), 페이지 오류 없음`);

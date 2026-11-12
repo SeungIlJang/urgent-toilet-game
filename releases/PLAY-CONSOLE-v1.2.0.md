@@ -48,11 +48,21 @@
 > `npm run verify:release` 가 versionName 과 `package.json` 이 어긋나면 막는다.
 > `android:sync` 는 `build:release` 를 쓰므로 폴백도 실광고본으로 들어간다.
 
-### 2-3. 스크린샷 갱신
+### 2-3. 스크린샷 갱신 — **언어별로 따로**
 
-- [ ] `npm run shot:store` 로 다시 촬영 — 지금 올라간 것은 **두 칸짜리 옛 화면**이다
-      (4칸 액션바·아이템 강화·콤보 뱃지·기지 수리가 모두 빠져 있다)
-- [ ] 폰 스크린샷 4장 교체: `shot1-title` · `shot4-combat` · `shot5-boss` · `shot6-jobs`
+지금 올라간 것은 **두 칸짜리 옛 화면**이다(4칸 액션바·아이템 강화·콤보 뱃지·기지 수리가
+모두 빠져 있다). `npm run shot:store` 가 세 언어를 각각 찍어 폴더로 나눠 둔다.
+
+| 등록정보 언어 | 올릴 폴더 |
+|---|---|
+| ko-KR | `store-assets/ko/` |
+| en-US | `store-assets/en/` |
+| ja-JP | `store-assets/ja/` |
+
+- [ ] 각 언어 등록정보에 그 언어 폴더의 4장 업로드:
+      `shot1-title` · `shot4-combat` · `shot5-boss` · `shot6-jobs`
+
+> 한 언어만 다시 찍으려면 `node scripts/shot-store.mjs en` 처럼 언어를 붙인다.
 
 ### 2-4. 확인만 하면 되는 것
 

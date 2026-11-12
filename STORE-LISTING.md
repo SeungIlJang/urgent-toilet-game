@@ -62,20 +62,30 @@
 - 시리즈 공용 정책 사용: "모두의시리즈 개인정보처리방침" (privacy-site/index.html, AdMob 광고 데이터 수집 고지 포함)
 - ⚠️ 배포 필요: 이 정책을 **공개 URL**로 호스팅해서 그 주소를 Play Console에 입력해야 함 (현재 로컬 파일). 앱명 "화장실 수비대"가 정책에 포함되는지 확인 권장.
 
-## 스크린샷 (v1.1.0 빌드에서 재촬영, 540×960 PNG)
+## 스크린샷 (540×960 PNG, 24비트·알파 없음)
 
-업로드 권장 순서:
+게임이 세 언어를 지원하므로 **언어별로 따로 찍는다**. Play Console 도 등록정보 언어마다
+스크린샷을 따로 받는다 — 영어 등록정보에 한국어 화면을 올릴 이유가 없다.
+
+| 등록정보 언어 | 폴더 |
+|---|---|
+| ko-KR | `store-assets/ko/` |
+| en-US | `store-assets/en/` |
+| ja-JP | `store-assets/ja/` |
+
+각 폴더 안의 업로드 권장 순서:
 
 | # | 파일 | 내용 |
 |---|---|---|
-| 1 | `store-assets/shot1-title.png` | 타이틀 — 최고기록·일일미션·출석보상 |
-| 2 | `store-assets/shot4-combat.png` | 전투 — 전직한 수비대 + 몰려오는 적 + 콤보 |
-| 3 | `store-assets/shot5-boss.png` | 보스전 — 웅장한 정화조 |
-| 4 | `store-assets/shot2-cards.png` | 레벨업 강화 카드 선택 |
-| 5 | `store-assets/shot6-jobs.png` | 전직 — 전사·법사·궁수 |
-| 6 | `store-assets/shot3-shop.png` | 무기 상점 |
+| 1 | `shot1-title.png` | 타이틀 — 최고기록·일일미션·출석보상 |
+| 2 | `shot4-combat.png` | 전투 — 전직한 수비대 + 4칸 아이템 + 콤보 뱃지 |
+| 3 | `shot5-boss.png` | 보스전 — 웅장한 정화조 |
+| 4 | `shot6-jobs.png` | 전직 — 전사·법사·궁수 |
+| 5 | `shot2-cards.png` | 레벨업 강화 카드 선택 |
+| 6 | `shot3-shop.png` | 무기 상점 |
 
-재촬영: `npm run shot:store` (현재 `www/game.html` 을 그대로 띄워 캡처하므로 빌드 후 실행할 것)
+재촬영: `npm run shot:store` (세 언어 전부) 또는 `node scripts/shot-store.mjs en` (한 언어만).
+`www/game.html` 을 그대로 띄워 캡처하므로 **빌드 후에** 실행할 것.
 
 ## 필수 그래픽 자산 체크
 - [x] 앱 아이콘 512×512 (PNG) — `store-assets/icon-512.png` (512×512 확인)
