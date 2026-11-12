@@ -43,7 +43,7 @@ function pin(s,o){
  if(!o||!s.hudCamera)return;o.cameraFilter|=s.cameras.main.id;o.cameraFilter&=~s.hudCamera.id;
  if(o.list)for(const child of o.list)pin(s,child);
 }
-export function createHudMethods({W,H,BASE_LINE,MISSIONS,BAND,CANVAS_H,ITEM_MAX,itemUpCost}){
+export function createHudMethods({W,H,BASE_LINE,MISSIONS,BAND,CANVAS_H,ITEM_MAX,itemUpCost,repairBuyCost}){
  return {
  createHud(){
   this.hudCamera=null;
@@ -64,10 +64,10 @@ export function createHudMethods({W,H,BASE_LINE,MISSIONS,BAND,CANVAS_H,ITEM_MAX,
   const baseLabel=label(this,30,60,'기지',12,MUTED);
   this.hpBar=this.add.graphics().setDepth(16);
   // 기지 수리는 회복 아이템을 대신한다. 기지 체력 옆에 둬야 '무엇을 고치는지'가 바로 읽힌다.
-  this.healthValue=label(this,476,60,'100 / 100',11,MUTED,1);
+  this.healthValue=label(this,462,60,'100 / 100',11,MUTED,1);
   this.repairBtn=this.add.graphics().setDepth(16);
-  this.repairText=label(this,505,60,'🔧1',11,INK,.5);
-  this.repairHit=this.add.rectangle(505,60,48,28,0xffffff,.001).setInteractive({useHandCursor:true}).setDepth(19);
+  this.repairText=label(this,499,60,'🔧1',11,INK,.5);
+  this.repairHit=this.add.rectangle(499,60,62,28,0xffffff,.001).setInteractive({useHandCursor:true}).setDepth(19);
   this.repairHit.on('pointerdown',e=>{this._uiTap=true;e.event?.stopPropagation?.();this.repairBase()});
   this.levelText=label(this,30,84,'Lv.1',12,'#638a9e');
   this.xpBar=this.add.graphics().setDepth(16);
@@ -135,9 +135,11 @@ export function createHudMethods({W,H,BASE_LINE,MISSIONS,BAND,CANVAS_H,ITEM_MAX,
   this.healthValue.setText(`${Math.max(0,Math.ceil(this.baseHp))} / ${this.baseMax}`);
   // 수리 버튼: 남은 횟수가 있고 실제로 다쳐 있을 때만 눈에 띄게 한다.
   const rep=this.repairs|0,useful=rep>0&&this.baseHp<this.baseMax;
-  this.repairBtn.clear();rounded(this.repairBtn,482,49,46,22,useful?0x8fe3b4:0xe4ebe9,11);
-  this.repairBtn.lineStyle(1.5,useful?0x4fb584:0xd3dedd,.9);this.repairBtn.strokeRoundedRect(482,49,46,22,11);
-  this.repairText.setText(`🔧${rep}`).setColor(useful?'#1c5e42':MUTED);
+  // 횟수가 떨어지면 가격을 띄워, 코인으로 살 수 있다는 걸 버튼 자체가 알려 준다.
+  const buyCost=repairBuyCost(this.repairsBought||0),canBuy=rep===0&&this.coins>=buyCost;
+  this.repairBtn.clear();rounded(this.repairBtn,468,49,62,22,useful?0x8fe3b4:canBuy?0xffd166:0xe4ebe9,11);
+  this.repairBtn.lineStyle(1.5,useful?0x4fb584:canBuy?0xe0a92c:0xd3dedd,.9);this.repairBtn.strokeRoundedRect(468,49,62,22,11);
+  this.repairText.setText(rep>0?`🔧${rep}`:`🔧${buyCost}`).setColor(useful?'#1c5e42':canBuy?'#7a5a12':MUTED);
   rail(this.xpBar,80,80,330,7,xp,0xb9a5e9);this.levelText.setText(`Lv.${this.level}`);this.xpValue.setText(`${Math.floor(xp*100)}%`);
   this.drawCombo();
   this.missionText.setText('오늘 '+MISSIONS.map(m=>this.settings.completed?.[m.id]?'✓':`${Math.min(m.target,this.missionValue(m))}/${m.target}`).join(' · '));

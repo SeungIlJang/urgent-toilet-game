@@ -16,9 +16,21 @@ export const waveSpawnCount = w =>
 export const waveSpawnGap = w =>
   Math.max(SPAWN_GAP_FLOOR, 820 - w * 38 - Math.max(0, w - 3) * 26);
 
+/* 후반 가속 구간. 도착률이 W11 에 7.8/s 로 고정되는데 플레이어는 레벨업 카드·아이템 강화·무기·
+   기지 체력이 전부 복리로 커서, 쏟아지는 양에 상한이 있는 쪽이 일방적으로 밀렸다. 실제로 반응을
+   늦추고 25% 를 놓치게 만든 봇조차 W21 까지 무피해로 갔다(2026-11-12 측정).
+   체력 배수에 가속을 붙여, 후반에는 '더 빨리 오는' 대신 '더 단단한' 적이 되게 한다. */
+export const HP_ACCEL_FROM = 13;
+export const hpAccel = w => 1 + Math.max(0, w - HP_ACCEL_FROM) * 0.16;
+
+/* 웨이브 클리어 회복. 예전엔 후반에도 최대 체력의 8% 라, 엘리트에게 깎인 만큼이 매 웨이브
+   통째로 되돌아왔다 — 봇이 W14·W18 에 피해를 받고도 끝까지 만피로 돌아왔다.
+   후반에는 절반 아래로 줄여, 받은 피해가 다음 웨이브까지 남게 한다. */
+export const clearHealPct = w => w <= 10 ? 0.08 : 0.035;
+
 /** 웨이브 w 의 적 체력 배수 */
 export const enemyHpMul = w =>
-  1 + w * 0.24 + Math.max(0, w - 1) * 0.10 + Math.max(0, w - 2) * 0.19;
+  (1 + w * 0.24 + Math.max(0, w - 1) * 0.10 + Math.max(0, w - 2) * 0.19) * hpAccel(w);
 
 /** 웨이브 w 의 적 이동속도 배수 */
 export const enemySpeedMul = w =>
@@ -43,10 +55,11 @@ export const BOSS_EVERY = 5;
    배수만 올라서 후반이 순수 DPS 체크가 됐다 — 못 뚫으면 다음 판도 똑같이 못 뚫는다.
    엘리트 변종으로 '숫자' 대신 '구성'을 바꿔, 후반에도 대응할 거리를 남긴다. */
 export const ELITE_FROM = 11;
-export const ELITE_CAP = 0.35;
+export const ELITE_CAP = 0.55;
 export const eliteChance = w => w < ELITE_FROM ? 0 : Math.min(ELITE_CAP, (w - ELITE_FROM + 1) * 0.05);
-/** shield: 체력 2.4배 · swift: 속도 1.5배 · splitter: 죽을 때 분열 */
+/** shield: 체력 3.5배 · swift: 속도 1.8배 · splitter: 죽을 때 분열. 셋 다 기지 피해 2배. */
 export const ELITE_KINDS = ['shield', 'swift', 'splitter'];
+export const ELITE_HP_MUL = 3.5, ELITE_SPEED_MUL = 1.8, ELITE_DMG_MUL = 2;
 export const isBossWave = w => w % BOSS_EVERY === 0;
 /** 보스 종류: 10웨이브마다 정화조, 첫 보스(5)는 소형, 나머지는 대형 */
 export const bossKind = w => (!isBossWave(w) ? null : w % 10 === 0 ? 'septic' : w === BOSS_EVERY ? 'mini' : 'big');

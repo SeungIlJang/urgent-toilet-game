@@ -5,7 +5,7 @@ import { createHudMethods, HUD_BOTTOM, slotRects, CARD_W, CARD_H, UP_W, UP_H, UP
 import { Capacitor } from '@capacitor/core';
 import { AdMob, RewardAdPluginEvents, BannerAdPosition, BannerAdSize } from '@capacitor-community/admob';
 import './style.css';
-import { waveSpawnCount, waveSpawnGap, enemyHpMul, enemySpeedMul, bossKind, eliteChance, ELITE_KINDS, SPAWN_TOP, RUSH_FROM, RUSH_MUL,
+import { waveSpawnCount, waveSpawnGap, enemyHpMul, enemySpeedMul, bossKind, eliteChance, clearHealPct, ELITE_KINDS, ELITE_HP_MUL, ELITE_SPEED_MUL, ELITE_DMG_MUL, SPAWN_TOP, RUSH_FROM, RUSH_MUL,
   DOUBLE_FROM, DOUBLE_PCT, TRIPLE_FROM, TRIPLE_PCT } from './balance.js';
 
 // AdMob. 실광고는 `VITE_REAL_ADS=1` 로 빌드했을 때만 켜진다(= npm run build:release).
@@ -138,8 +138,12 @@ const SLOT_OPEN_AT = [1, 2, 4, 7];
 // 단가 90 일 때는 하나 만렙에 2,430 🪙 이었는데, W10 까지 쉬지 않고 벌어도 누적 수입이
 // 2,049 였다. 투자처는 아이템 4 + 무기 1 로 다섯인데 한 군데도 못 채우니, 네 칸 중 세 칸은
 // 늘 회색으로 남았다. 45 로 내려 하나 만렙을 1,215 로 만든다 — W8 쯤이면 한 칸은 채운다.
-const ITEM_MAX = 5;
-const itemUpCost = lvl => Math.round(45 * (lvl + 1) * (1 + lvl * 0.3));
+// Lv.5 까지는 완만해서 W8 쯤 한 칸을 채운다. 거기서 끝내면 W15 이후 🪙가 죽은 자원이 됐다
+// (봇 측정: W15 612 → W21 14,613 인데 살 게 없었다). Lv.6~8 을 가파르게 열어 후반 목표로 둔다.
+const ITEM_MAX = 8;
+const itemUpCost = lvl => Math.round(45 * (lvl + 1) * (1 + lvl * 0.3) * (lvl >= 5 ? Math.pow(1.9, lvl - 4) : 1));
+// 판에서 사는 기지 수리. 살수록 비싸져서 무한 회복이 되지 않는다.
+const repairBuyCost = bought => Math.round(400 * Math.pow(1.8, bought));
 const WEAPONS = [
   { id: 'basic', name: '기본 볼트', desc: '균형 잡힌 단발', gem: 0, up: 130, bolts: 1, spread: 0, pierce: 1, dmg: 1, fire: 1, color: 0xfff6cf, size: 8, upDesc: '데미지+ · 연사+' },
   { id: 'shotgun', name: '산탄총', desc: '3발 부채꼴 발사', gem: 90, up: 235, bolts: 3, spread: 0.22, pierce: 1, dmg: 0.75, fire: 1.2, color: 0xffb347, size: 7, upDesc: '데미지+ · 3Lv마다 탄+1' },
@@ -218,7 +222,7 @@ class GameScene extends Phaser.Scene {
     this.bombDmg=this.bombDmgBase;this.bombR=this.bombRBase;this.bombCd=2500;
     this.coinMult=1+this.upg.coin*0.25+(perk==='gold'?1:0);
     this.baseMax=100+this.upg.basehp*30+(perk==='hp'?40:0);
-    Object.assign(this,{state:'ready',score:0,coins:0,kills:0,bombsUsed:0,wave:0,baseHp:this.baseMax,toSpawn:0,spawnGap:900,lastSpawn:0,lastFire:0,bombReadyAt:0,slots:null,repairs:1,freezeUntil:0,streak:0,streakAt:0,_lastWarn:0,level:1,xp:0,xpNext:10,job:'',job2:'',_settled:false,_settleResult:null,revived:false,runDmg:1,runFire:1,runBolts:0,runPierce:0,runExplode:false,runBoltSize:0,runCoinMul:1,upsTaken:[],upCounts:{},rerolls:1});
+    Object.assign(this,{state:'ready',score:0,coins:0,kills:0,bombsUsed:0,wave:0,baseHp:this.baseMax,toSpawn:0,spawnGap:900,lastSpawn:0,lastFire:0,bombReadyAt:0,slots:null,repairs:1,repairsBought:0,freezeUntil:0,streak:0,streakAt:0,_lastWarn:0,level:1,xp:0,xpNext:10,job:'',job2:'',_settled:false,_settleResult:null,revived:false,runDmg:1,runFire:1,runBolts:0,runPierce:0,runExplode:false,runBoltSize:0,runCoinMul:1,upsTaken:[],upCounts:{},rerolls:1});
     this.enemies=[];this.bolts=[];
     this.bestScore=+this.settings.bestScore||0;this.bestWave=+this.settings.bestWave||0;this.sound=new SoundKit(this.settings);this.events.once('shutdown',()=>this.sound.destroy());
     this.createWorld();this.createHero();this.createHud();this.createInput();this.showStart();this.initAdMob();
@@ -445,8 +449,8 @@ class GameScene extends Phaser.Scene {
   makeElite(e,w){if(e.boss||Math.random()>=eliteChance(w))return;
     const kind=Phaser.Utils.Array.GetRandom(ELITE_KINDS),color={shield:0x6fa8ff,swift:0xffd24a,splitter:0xc77bff}[kind];
     e.elite=kind;e.baseScale*=1.18;e.setScale(e.baseScale);
-    if(kind==='shield'){e.hp=Math.round(e.hp*2.4);e.maxHp=e.hp}
-    else if(kind==='swift')e.speed*=1.5;
+    if(kind==='shield'){e.hp=Math.round(e.hp*ELITE_HP_MUL);e.maxHp=e.hp}
+    else if(kind==='swift')e.speed*=ELITE_SPEED_MUL;
     else e.eliteSplit=true;
     e.reward3x=true;
     e.ring=this.add.circle(e.x,e.y,30,color,.18).setStrokeStyle(3,color,.75).setDepth(6);}
@@ -469,7 +473,7 @@ class GameScene extends Phaser.Scene {
     this.gainXp(e.boss?(e.kind==='septic'?14:e.kind==='big'?10:6):1);const mult=1+Math.floor(this.streak/5);
     this.score+=(e.boss?(e.kind==='septic'?320:e.kind==='big'?200:70):10)*mult;const c=this.addCoin(e.spec.reward*(e.reward3x?3:1));if(this.jobHeal)this.baseHp=Math.min(this.baseMax,this.baseHp+2);this.sound.kill(!!e.boss);if(!this.reducedMotion){this.fx.emitParticleAt(e.x,e.y,e.boss?(e.big?30:18):12);this.killPop(e.x,e.y,e.tintColor||0xffffff);if(e.boss||this.streak%4===0)this.cameras.main.shake(70,e.boss?0.006:0.0028)}this.floatText(e.x,e.y-8,e.boss?`보스 처치! +🪙${c}`:`+🪙${c}`,e.boss?0xffd24a:0x9be7a0);if(this.streak>0&&this.streak%10===0){this.floatText(this.heroX,BASE_LINE-120,`🔥 ${this.streak}연속!`,0xff9e3d);this.punch(1.04)}if(e.boss){this.repairs++;this.floatText(this.base.x,BASE_LINE-20,'🔧 수리 +1',0x70e1a1);this.punch(e.big?1.07:1.04);if(e.big&&!this.reducedMotion)this.cameras.main.flash(180,255,240,150)}if(e.spec.split||e.eliteSplit){const sp=ENEMIES.germ;for(let k=0;k<2;k++){const me=this.add.sprite(e.x+(k?22:-22),e.y,sp.tex).setScale(sp.scale*.66*ART_SCALE).setDepth(7);me.spec=sp;me.tintColor=sp.tint;me.hp=3;me.maxHp=3;me.baseScale=sp.scale*.66*ART_SCALE;me.speed=120;me.seed=Phaser.Math.Between(0,628)/100;me.spin=Phaser.Math.Between(-30,30)/10;this.addBars(me,26);this.enemies.push(me)}}e.destroy();this.updateHud()}
   throwBomb(x,y){if(this.time.now<this.bombReadyAt)return;if(this.bombTip){this.bombTip.destroy();this.bombTip=null;this.settings.seenBombTip=true;this.persistSettings()}this.bombReadyAt=this.time.now+this.bombCd;this.bombsUsed++;this.explode(x,y);this.updateHud()}
-  baseHit(e){const i=this.enemies.indexOf(e);if(i>=0)this.enemies.splice(i,1);e.bar?.destroy();e.barBg?.destroy();e.ring?.destroy();this.baseHp-=e.spec.dmg;this.streak=0;this.sound.hurt();this.sound.vibrate([50,40,50]);if(!this.reducedMotion){this.cameras.main.shake(180,.014);this.cameras.main.flash(140,255,80,80)}this.floatText(this.base.x,BASE_LINE+10,`-${e.spec.dmg}`,0xff5470);e.destroy();this.updateHud();if(this.baseHp<=0)this.gameOver()}
+  baseHit(e){const i=this.enemies.indexOf(e);if(i>=0)this.enemies.splice(i,1);e.bar?.destroy();e.barBg?.destroy();e.ring?.destroy();const dmg=e.spec.dmg*(e.elite?ELITE_DMG_MUL:1);this.baseHp-=dmg;this.streak=0;this.sound.hurt();this.sound.vibrate([50,40,50]);if(!this.reducedMotion){this.cameras.main.shake(180,.014);this.cameras.main.flash(140,255,80,80)}this.floatText(this.base.x,BASE_LINE+10,`-${dmg}`,0xff5470);e.destroy();this.updateHud();if(this.baseHp<=0)this.gameOver()}
   startWave(){this.wave++;this.state='playing';this.waveStartCoins=this.coins;const kind=bossKind(this.wave);this.toSpawn=waveSpawnCount(this.wave);this.spawnGap=waveSpawnGap(this.wave);this.lastSpawn=this.time.now;
     // 보스는 5웨이브마다만. 사이 웨이브는 잡졸만 나와 보스전이 '사건'으로 느껴진다.
     if(kind)this.spawnBoss(kind);
@@ -485,7 +489,7 @@ class GameScene extends Phaser.Scene {
   //   🎬 광고 보상 → 게임오버의 '💎 2배'.
   betweenWaves(){this.state='intermission';this.bombTip?.destroy();this.bombTip=null;
     this.settings.dailyProgress.wave=Math.max(this.settings.dailyProgress.wave||0,this.wave);
-    const heal=Math.round(this.baseMax*0.08);this.baseHp=Math.min(this.baseMax,this.baseHp+heal);save(this.settings);
+    const heal=Math.round(this.baseMax*clearHealPct(this.wave));this.baseHp=Math.min(this.baseMax,this.baseHp+heal);save(this.settings);
     this.banner(`WAVE ${this.wave} 클리어!   ❤️+${heal}`,'#70e1a1',268);
     this.updateHud();
     // 이 1.15초 동안은 state 가 'intermission' 이라 update() 가 멈춰 있다(일시정지도 막힘).
@@ -511,7 +515,13 @@ class GameScene extends Phaser.Scene {
   /* 기지 수리. 쿨다운이 아니라 '횟수'다 — 12초마다 또박또박 차오르면 쉬운 구간이 무적이 되고
      어려운 구간에서는 어차피 못 따라간다. 횟수로 두면 '지금 쓸까 아껴둘까'가 결정이 된다.
      판 시작 1회, 보스를 잡을 때마다 +1. */
-  repairBase(){if(this.state!=='playing'||this.repairs<=0)return;if(this.baseHp>=this.baseMax){this.floatText(this.base.x,BASE_LINE+6,'아직 멀쩡해요!',0x9bd7e7);return}
+  repairBase(){if(this.state!=='playing')return;
+    // 남은 횟수가 없으면 🪙로 한 번 산다. 후반에 넘치는 코인이 갈 곳이기도 하다.
+    if(this.repairs<=0){const cost=repairBuyCost(this.repairsBought||0);
+      if(this.coins<cost){this.floatText(this.base.x,BASE_LINE+6,`🪙${cost} 필요해요`,0xffc23d);return}
+      this.coins-=cost;this.repairsBought=(this.repairsBought||0)+1;this.repairs++;this.sound.coin();
+      this.floatText(this.base.x,BASE_LINE+6,'🔧 수리 구매!',0xffc23d);this.updateHud();return}
+    if(this.baseHp>=this.baseMax){this.floatText(this.base.x,BASE_LINE+6,'아직 멀쩡해요!',0x9bd7e7);return}
     this.repairs--;this.baseHp=Math.min(this.baseMax,this.baseHp+Math.round(this.baseMax*.35));
     this.sound.special('heal');this.floatText(this.base.x,BASE_LINE+6,'🔧 수리!',0x5cff9e);this.banner('🔧 기지 수리!','#70e1a1');
     this.updateHud()}
@@ -649,5 +659,5 @@ class GameScene extends Phaser.Scene {
 }
 
 Object.assign(GameScene.prototype, createScreenMethods({LOOKS,WEAPONS,MISSIONS,UPGRADES,RARITY,JOBS1,JOBS2,WEP_MAX,APP_VERSION,upgCost,wepUpCost,gemPayout,save,SAVE_KEY}));
-Object.assign(GameScene.prototype, createHudMethods({W,H,BASE_LINE,MISSIONS,BAND,CANVAS_H,ITEM_MAX,itemUpCost}));
+Object.assign(GameScene.prototype, createHudMethods({W,H,BASE_LINE,MISSIONS,BAND,CANVAS_H,ITEM_MAX,itemUpCost,repairBuyCost}));
 const __GAME=new Phaser.Game({type:Phaser.AUTO,parent:'game',width:W,height:CANVAS_H,backgroundColor:'#a9e8f3',disableVisibilityChange:true,render:{antialias:true,powerPreference:'low-power',batchSize:2048},fps:{target:60,min:30},scale:{mode:Phaser.Scale.FIT,autoCenter:Phaser.Scale.CENTER_BOTH},scene:GameScene});if(typeof window!=='undefined')window.__game=__GAME;
