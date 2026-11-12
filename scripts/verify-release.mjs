@@ -4,13 +4,19 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const at = rel => readFile(new URL(rel, import.meta.url), 'utf8');
-const APP_NAME = '화장실 수비대';
+// 앱 이름은 로케일별로 나뉜다. values/ 가 기본(영어)이고, 한국어·일본어 기기는 각자 폴더를 쓴다.
+// 웹 쉘(제목·매니페스트)은 로케일을 못 나누므로 기본 리소스와 같은 영어로 맞춰 둔다.
+const APP_NAME = 'Toilet Defenders';
+const APP_NAMES = { '': 'Toilet Defenders', '-ko': '화장실 수비대', '-ja': 'トイレしゅびたい' };
 const realAds = process.env.VITE_REAL_ADS === '1';
 
 const pkg = JSON.parse(await at('../package.json'));
 const gradle = await at('../android/app/build.gradle');
 const manifest = await at('../android/app/src/main/AndroidManifest.xml');
 const strings = await at('../android/app/src/main/res/values/strings.xml');
+const localeStrings = Object.fromEntries(await Promise.all(
+  Object.keys(APP_NAMES).map(async suffix =>
+    [suffix, await at(`../android/app/src/main/res/values${suffix}/strings.xml`)])));
 const indexHtml = await at('../index.html');
 const webmanifest = JSON.parse(await at('../public/manifest.webmanifest'));
 const main = await at('../src/main.js');
@@ -22,7 +28,14 @@ assert.equal(versionName, pkg.version, `versionName(${versionName}) 과 package.
 assert.ok(Number.isInteger(versionCode) && versionCode > 0, 'versionCode 가 올바르지 않습니다');
 
 // --- 앱 이름 ---
-assert.ok(strings.includes(`<string name="app_name">${APP_NAME}</string>`), 'strings.xml 앱 이름 불일치');
+for (const [suffix, name] of Object.entries(APP_NAMES)) {
+  const file = `values${suffix}/strings.xml`;
+  assert.ok(localeStrings[suffix].includes(`<string name="app_name">${name}</string>`), `${file} 앱 이름 불일치`);
+  assert.ok(localeStrings[suffix].includes(`<string name="title_activity_main">${name}</string>`), `${file} 액티비티 제목 불일치`);
+}
+// 앱 ID 는 기본 리소스에만 있어야 한다. 번역 폴더로 새면 로케일마다 다른 ID 가 될 수 있다.
+for (const suffix of Object.keys(APP_NAMES).filter(s => s))
+  assert.ok(!/package_name|custom_url_scheme/.test(localeStrings[suffix]), `values${suffix}/strings.xml 에 앱 ID 가 들어 있습니다`);
 assert.ok(indexHtml.includes(`<title>${APP_NAME}</title>`), 'index.html 제목 불일치');
 assert.equal(webmanifest.name, APP_NAME, 'manifest.webmanifest 이름 불일치');
 assert.ok(!/급해!/.test(indexHtml + JSON.stringify(webmanifest)), '옛 게임 이름(급해! 화장실)이 남아 있습니다');
@@ -44,6 +57,7 @@ if (realAds) {
 }
 
 console.log(
-  `PASS: v${pkg.version} (versionCode ${versionCode}) · 앱 이름 "${APP_NAME}" 일치 · 권한 OK · ` +
+  `PASS: v${pkg.version} (versionCode ${versionCode}) · 앱 이름 ${Object.entries(APP_NAMES)
+    .map(([s, n]) => `${s || 'default'}:"${n}"`).join(' ')} · 권한 OK · ` +
   `광고 ${realAds ? '실유닛' : '테스트 유닛'}`,
 );

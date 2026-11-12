@@ -1,6 +1,6 @@
 {
   "appId": "kr.co.sharetoilet.urgentgame",
-  "appName": "화장실 수비대",
+  "appName": "Toilet Defenders",
   "webDir": "www",
   "server": {
     "androidScheme": "https"

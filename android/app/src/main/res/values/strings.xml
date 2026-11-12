@@ -1,7 +1,12 @@
 <?xml version='1.0' encoding='utf-8'?>
+<!--
+  기본(fallback) 리소스는 영어다. 한국어·일본어가 아닌 기기는 전부 여기를 쓴다.
+  한국어는 values-ko/, 일본어는 values-ja/ 에 있다 — 그 기기들은 거기서 가져간다.
+  package_name 과 custom_url_scheme 은 번역 대상이 아니다(앱 ID 라 바뀌면 안 된다).
+-->
 <resources>
-    <string name="app_name">화장실 수비대</string>
-    <string name="title_activity_main">화장실 수비대</string>
-    <string name="package_name">kr.co.sharetoilet.urgentgame</string>
-    <string name="custom_url_scheme">kr.co.sharetoilet.urgentgame</string>
+    <string name="app_name">Toilet Defenders</string>
+    <string name="title_activity_main">Toilet Defenders</string>
+    <string name="package_name" translatable="false">kr.co.sharetoilet.urgentgame</string>
+    <string name="custom_url_scheme" translatable="false">kr.co.sharetoilet.urgentgame</string>
 </resources>
