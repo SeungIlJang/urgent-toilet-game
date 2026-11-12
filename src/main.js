@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { SoundKit } from './sound-kit.js';
 import { createScreenMethods } from './ui-screens.js';
-import { createHudMethods, HUD_BOTTOM } from './hud-ui.js';
+import { createHudMethods, HUD_BOTTOM, slotRects, CARD_W, CARD_H } from './hud-ui.js';
 import { Capacitor } from '@capacitor/core';
 import { AdMob, RewardAdPluginEvents, BannerAdPosition, BannerAdSize } from '@capacitor-community/admob';
 import './style.css';
@@ -53,6 +53,8 @@ const SCREEN_RATIO = (globalThis.innerHeight || H) / (globalThis.innerWidth || W
 const CANVAS_H = Math.round(Math.min(Math.max(W * SCREEN_RATIO, H), 1280));
 // 남는 세로 공간의 55% 를 위(HUD)에, 나머지는 아래(제스처바)에 준다.
 const BAND = Math.round(Math.min((CANVAS_H - H) * 0.55, 240));
+// 액션 칸 4개의 자리(캔버스 좌표). HUD 가 그리는 것과 탭 판정이 같은 값을 보게 한 벌만 만든다.
+const SLOT_RECTS = slotRects(W, CANVAS_H);
 // 버전은 package.json 하나만 고치면 되도록 vite define(__APP_VERSION__)으로 주입한다.
 const APP_VERSION = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : 'dev';
 const load = () => { try { return JSON.parse(localStorage.getItem(SAVE_KEY) || '{}'); } catch { return {}; } };
@@ -115,7 +117,7 @@ const UPCARDS = [
   { id:'over',   r:'epic',   icon:'☄️', name:'과부하',    desc:'공격력 +60%',        apply:s=>{s.runDmg*=1.60} },
   { id:'volley', r:'epic',   icon:'🎆', name:'일제 사격', desc:'탄환 +2발',          apply:s=>{s.runBolts+=2} },
 ];
-// Left-slot special items. One is randomly assigned each run (right slot is always the bomb).
+// 액션 칸에 들어가는 특수 아이템. 한 판에 이 중 3종이 뽑혀 물폭탄과 함께 네 칸을 채운다.
 const SPECIALS = [
   { id:'rain',   name:'총알비', icon:'🌧️', cd:6000,  color:0x59c2ff },
   { id:'bolt',   name:'번개',   icon:'⚡',  cd:8000,  color:0xffe14d },
@@ -201,7 +203,7 @@ class GameScene extends Phaser.Scene {
     this.bombDmg=7+this.upg.bomb*3+(perk==='bomb'?4:0);this.bombR=118+this.upg.bomb*16+(perk==='bomb'?30:0);this.bombCd=2500;
     this.coinMult=1+this.upg.coin*0.25+(perk==='gold'?1:0);
     this.baseMax=100+this.upg.basehp*30+(perk==='hp'?40:0);
-    Object.assign(this,{state:'ready',score:0,coins:0,kills:0,bombsUsed:0,wave:0,baseHp:this.baseMax,toSpawn:0,spawnGap:900,lastSpawn:0,lastFire:0,bombReadyAt:0,specialReadyAt:0,freezeUntil:0,streak:0,streakAt:0,_lastWarn:0,level:1,xp:0,xpNext:10,job:'',job2:'',_settled:false,_settleResult:null,revived:false,runDmg:1,runFire:1,runBolts:0,runPierce:0,runExplode:false,runBoltSize:0,runCoinMul:1,upsTaken:[],upCounts:{},rerolls:1});
+    Object.assign(this,{state:'ready',score:0,coins:0,kills:0,bombsUsed:0,wave:0,baseHp:this.baseMax,toSpawn:0,spawnGap:900,lastSpawn:0,lastFire:0,bombReadyAt:0,slots:null,freezeUntil:0,streak:0,streakAt:0,_lastWarn:0,level:1,xp:0,xpNext:10,job:'',job2:'',_settled:false,_settleResult:null,revived:false,runDmg:1,runFire:1,runBolts:0,runPierce:0,runExplode:false,runBoltSize:0,runCoinMul:1,upsTaken:[],upCounts:{},rerolls:1});
     this.enemies=[];this.bolts=[];
     this.bestScore=+this.settings.bestScore||0;this.bestWave=+this.settings.bestWave||0;this.sound=new SoundKit(this.settings);this.events.once('shutdown',()=>this.sound.destroy());
     this.createWorld();this.createHero();this.createHud();this.createInput();this.showStart();this.initAdMob();
@@ -356,7 +358,7 @@ class GameScene extends Phaser.Scene {
     this.aura.setVisible(true).setFillStyle(color,.35);this.auraOn=true;
   }
   nearestEnemy(){let best=null,bd=1e9;for(const e of this.enemies){if(!e.active||e.y<8)continue;const d=Phaser.Math.Distance.Between(this.heroX,BASE_LINE-40,e.x,e.y);if(d<bd){bd=d;best=e}}return best}
-  setHudVisible(on){this._hudShown=on;for(const o of (this.hudItems||[]))o?.setVisible?.(on);if(this.bombArc)this.bombArc.setVisible(on);if(this.itemArc)this.itemArc.setVisible(on)}
+  setHudVisible(on){this._hudShown=on;for(const o of (this.hudItems||[]))o?.setVisible?.(on)}
   // 레벨업·전직·상점·일시정지 오버레이는 HUD를 가리지 않아, 뒤로 WAVE·점수·기지HP·미션이 비쳐 지저분했다.
   // (타이틀과 종료 모달만 직접 숨기고 있었다.) 오버레이가 하나라도 열려 있으면 HUD 전체를 숨긴다.
   // update() 매 프레임 호출되므로 값이 바뀔 때만 실제로 적용한다.
@@ -373,7 +375,10 @@ class GameScene extends Phaser.Scene {
       this.padFill?.setFillStyle(frame??t.ground);
     }}
   rebuildArsenal(){const owned=this.settings.weaponsOwned||['basic'];let id=this.settings.weapon;if(!owned.includes(id))id=owned[0]||'basic';this.settings.weapon=id;const prev=(this.arsenal&&this.arsenal[0]&&this.arsenal[0].wp.id===id)?this.arsenal[0]:null,wp=WEAPONS.find(w=>w.id===id)||WEAPONS[0],lv=this.settings.weaponLevels[id]||0;this.arsenal=[{wp,lv,dmgMul:wp.dmg*(1+lv*0.10),bolts:wp.bolts+(id==='shotgun'?Math.floor(lv/3):0),pierce:wp.pierce+(id==='laser'?Math.floor(lv/2):0),miniR:72+(id==='grenade'?lv*10:0),fireFactor:wp.fire*((id==='basic'||id==='rapid')?(1-lv*0.04):1),lvlFireMul:prev?prev.lvlFireMul:1,lastFire:prev?prev.lastFire:0}];this.buildWeaponHud()}
-  createInput(){this.input.on('pointerdown',p=>{p={x:p.x,y:p.y-BAND};this.sound.unlock();if(this._uiTap){this._uiTap=false;return}if(this.overlayOpen())return;if(this.state==='ready'||this.state==='over')return;if(this.state!=='playing')return;if(p.y<HUD_BOTTOM+6)return;if(p.x<118&&p.y>836){this.activateSpecial();return}if(p.x>W-118&&p.y>836){const t=this.nearestEnemy();if(t)this.throwBomb(t.x,Phaser.Math.Clamp(t.y,HUD_BOTTOM+6,BASE_LINE-20));return}this.throwBomb(p.x,Phaser.Math.Clamp(p.y,HUD_BOTTOM+6,BASE_LINE-20))});this.pauseButton.on('pointerdown',e=>{this._uiTap=true;e.event?.stopPropagation?.();this.state==='paused'?this.resumeGame():this.pauseGame()})}
+  createInput(){this.input.on('pointerdown',pt=>{const cx=pt.x,cy=pt.y,p={x:pt.x,y:pt.y-BAND};this.sound.unlock();if(this._uiTap){this._uiTap=false;return}if(this.overlayOpen())return;if(this.state==='ready'||this.state==='over')return;if(this.state!=='playing')return;if(p.y<HUD_BOTTOM+6)return;
+    // 칸을 눌렀으면 그 칸을 쓰고, 아니면 누른 자리에 물폭탄을 던진다.
+    const slot=this.slotAt(cx,cy);if(slot>=0){this.activateSlot(slot);return}
+    this.throwBomb(p.x,Phaser.Math.Clamp(p.y,HUD_BOTTOM+6,BASE_LINE-20))});this.pauseButton.on('pointerdown',e=>{this._uiTap=true;e.event?.stopPropagation?.();this.state==='paused'?this.resumeGame():this.pauseGame()})}
   overlayOpen(){return !!(this.shopOverlay||this.charOverlay||this.lbOverlay||this.weaponOverlay||this.pauseOverlay||this.jobOverlay||this.upOverlay||this.resetOverlay)}
   addCoin(n){const amount=Math.max(1,Math.round(n*this.coinMult*(this.runCoinMul||1)));this.coins+=amount;return amount} // 🪙은 판 안에서만 쓰는 지갑이라 저장하지 않는다
   punch(s=1.04){if(this.reducedMotion)return;this.cameras.main.zoomTo(s,90,'Sine.easeInOut',true);this.time.delayedCall(120,()=>{if(this.state==='playing')this.cameras.main.zoomTo(1,110)})}
@@ -452,9 +457,21 @@ class GameScene extends Phaser.Scene {
     this.time.delayedCall(1150,()=>{if(this.state==='intermission')this.startWave()})}
   // ---------- flow ----------
   startGame(){if(this.state==='over')return this.scene.restart({autoStart:true});this.beginPlay()}
-  beginPlay(){this.setHudVisible(true);this.hideBannerAd();this.shopOverlay?.destroy();this.shopOverlay=null;this.charOverlay?.destroy();this.charOverlay=null;this.lbOverlay?.destroy();this.lbOverlay=null;this.weaponOverlay?.destroy();this.weaponOverlay=null;this.overlay?.destroy();this.overlay=null;this.diagnostics.start();this.diagnosticTick||=this.time.addEvent({delay:100,loop:true,callback:()=>this.diagnostics.sample(this.wave,this.state==='playing'?'playing':this.state,false,this.score+this.kills*0.001+0.001)});this.settings.seenTutorial=true;this.persistSettings();this.pickSpecial();this.startWave()}
-  pickSpecial(){this.special=SPECIALS[Math.floor(Math.random()*SPECIALS.length)];this.specialReadyAt=0;this.itemIcon?.setText(this.special.icon);this.itemLabel?.setText(this.special.name);this.banner('🎁 이번 판 아이템: '+this.special.name,'#59c2ff')}
-  activateSpecial(){if(this.state!=='playing'||!this.special)return;if(this.time.now<this.specialReadyAt)return;this.specialReadyAt=this.time.now+this.special.cd;const id=this.special.id;this.sound.special(id);this.punch(1.04);
+  beginPlay(){this.setHudVisible(true);this.hideBannerAd();this.shopOverlay?.destroy();this.shopOverlay=null;this.charOverlay?.destroy();this.charOverlay=null;this.lbOverlay?.destroy();this.lbOverlay=null;this.weaponOverlay?.destroy();this.weaponOverlay=null;this.overlay?.destroy();this.overlay=null;this.diagnostics.start();this.diagnosticTick||=this.time.addEvent({delay:100,loop:true,callback:()=>this.diagnostics.sample(this.wave,this.state==='playing'?'playing':this.state,false,this.score+this.kills*0.001+0.001)});this.settings.seenTutorial=true;this.persistSettings();this.pickSlots();this.startWave()}
+  /* 네 칸을 채운다. 물폭탄은 반드시 한 칸 차지하고, 나머지 세 칸은 특수 아이템 4종 중 3종을
+     뽑아 넣는다. 칸 순서까지 섞어서 어느 자리에 무엇이 오는지 판마다 달라진다. */
+  pickSlots(){const picked=Phaser.Utils.Array.Shuffle(SPECIALS.slice()).slice(0,3);
+    this.slots=Phaser.Utils.Array.Shuffle([{kind:'bomb',name:'물폭탄',icon:'💣',color:0x9c5cff},
+      ...picked.map(s=>({kind:'special',spec:s,name:s.name,icon:s.icon,color:s.color}))]);
+    for(const s of this.slots)s.readyAt=0;
+    this.banner('🎁 이번 판 아이템: '+picked.map(s=>s.name).join(' · '),'#59c2ff');this.updateActionHud()}
+  /* 탭한 캔버스 좌표가 어느 칸인지. 그림과 같은 slotRects 를 쓰므로 둘이 어긋날 수 없다. */
+  slotAt(cx,cy){return SLOT_RECTS.findIndex(r=>Math.abs(cx-r.x)<=CARD_W/2&&cy>=r.y&&cy<=r.y+CARD_H)}
+  activateSlot(i){const slot=this.slots?.[i];if(!slot||this.state!=='playing')return;
+    if(slot.kind!=='bomb'){this.activateSpecial(slot);return}
+    // 물폭탄 칸은 가장 가까운 적에게 던진다. 적이 없으면 쿨다운을 버리지 않는다.
+    const t=this.nearestEnemy();if(t)this.throwBomb(t.x,Phaser.Math.Clamp(t.y,HUD_BOTTOM+6,BASE_LINE-20))}
+  activateSpecial(slot){if(this.state!=='playing'||!slot?.spec)return;if(this.time.now<slot.readyAt)return;slot.readyAt=this.time.now+slot.spec.cd;const id=slot.spec.id;this.sound.special(id);this.punch(1.04);
     if(id==='rain'){for(let k=0;k<16;k++){const x=Phaser.Math.Between(40,W-40),b=this.add.circle(x,120,6,0x9ad0ff).setStrokeStyle(3,0xffffff,.8).setDepth(10);b.vx=0;b.vy=780;b.dmg=Math.max(2,Math.round(this.boltDmg*1.1));b.pierceLeft=1;this.bolts.push(b)}this.banner('🌧️ 총알비!','#59c2ff')}
     else if(id==='bolt'){if(!this.reducedMotion)this.cameras.main.flash(160,255,240,150);this.cameras.main.shake(160,.006);for(const e of[...this.enemies])this.hitEnemy(e,Math.max(3,Math.round(this.boltDmg*3)),e.x,e.y);this.banner('⚡ 번개!','#ffe14d')}
     else if(id==='freeze'){this.freezeUntil=this.time.now+3200;if(!this.reducedMotion)this.cameras.main.flash(140,150,220,255);this.banner('❄️ 얼리기!','#7fdfff')}
