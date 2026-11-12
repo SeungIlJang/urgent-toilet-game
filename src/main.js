@@ -203,8 +203,11 @@ class GameScene extends Phaser.Scene {
   create(data={}) {
     this.patchTextPadding();
     this.settings=load();this.settings.unlocked||=['classic'];this.settings.selected||='classic';this.settings.upgrades||={};
-    // 언어: 저장해 둔 게 있으면 그걸, 없으면 기기 언어에서 고른다(ko/ja 아니면 영어).
-    this.settings.lang||=detectLang();setLang(this.settings.lang);
+    /* 언어: 사용자가 직접 고른 적이 있으면(langPinned) 그 값을 끝까지 쓰고, 고른 적이 없으면
+       기기 언어를 '매번' 다시 본다. 예전에는 첫 실행 때 정해진 값이 그대로 저장돼서, 나중에
+       폰 언어를 바꾸면 런처 이름만 바뀌고 게임 안은 그대로라 서로 어긋났다. */
+    this.settings.lang=this.settings.langPinned?(this.settings.lang||detectLang()):detectLang();
+    setLang(this.settings.lang);
     // 지갑 두 개: 💎보석은 영구(영구 강화·스킨·무기 해금), 🪙코인은 그 판에서만 쓰고 사라진다(무기 강화).
     // 예전엔 코인 하나로 둘 다 사서, 죽을 때마다 전부 0이 되고 출석 보상도 의미가 없었다.
     this.settings.gems=+this.settings.gems||0;

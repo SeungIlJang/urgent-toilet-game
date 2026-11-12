@@ -43,6 +43,14 @@ export function createScreenMethods(E){
     const c=this.overlay=screen(this,20);
     text(this,c,120,43,t('말랑뽀짝 디펜스'),13,C.muted,{letterSpacing:2});
     card(this,c,440,43,144,40,0xffffff);text(this,c,440,43,`💎 ${this.settings.gems}`,17);
+    // 언어 바꾸기. 맨 오른쪽은 💎 카운터가 쓰므로 그 왼쪽 빈자리(x 180~368)에 둔다.
+    // 설정 안에만 두면 영어·일본어 사용자가 한국어 화면에서 '설정'을 찾아 들어가야 한다.
+    button(this,c,268,43,104,36,`🌐 ${LANG_NAMES[getLang()]}`,0xffffff,()=>this.cycleLang(),13);
+    // 칩 자체는 세로 36px — 실기기에서 약 27dp 라 손가락으로 누르기 빠듯하다. 보이는 크기는
+    // 그대로 두고 누르는 영역만 넓힌다(약 49dp). 위에 덮으므로 칩의 원래 히트는 가려진다.
+    const langHit=this.add.rectangle(268,43,150,64,0xffffff,.001).setInteractive({useHandCursor:true});
+    c.add(langHit);
+    langHit.on('pointerdown',e=>{this._uiTap=true;e.event?.stopPropagation?.();this.cycleLang()});
     text(this,c,270,110,t('화장실'),48,C.ink,{fontStyle:'900'});
     text(this,c,270,172,t('수비대'),62,'#309b90',{fontStyle:'900',stroke:'#ffffff',strokeThickness:5});
     text(this,c,270,225,t('작은 변기와 함께, 오늘도 뽀송하게!'),17,C.muted);
@@ -66,16 +74,20 @@ export function createScreenMethods(E){
     button(this,c,421,844,158,44,t('⚙ 설정'),0xffffff,()=>this.showSettings(),16);
     text(this,c,270,900,t('v{v}  ·  오늘도 뽀송한 하루!',{v:APP_VERSION}),12,C.muted);
   },
+  /* 언어는 누를 때마다 ko → en → ja 로 돌아간다. 셋뿐이라 목록을 따로 띄울 이유가 없다.
+     여기서 고르면 langPinned 가 서서, 그 뒤로는 기기 언어가 바뀌어도 이 선택이 유지된다. */
+  cycleLang(from){
+    const next=LANGS[(LANGS.indexOf(getLang())+1)%LANGS.length];
+    setLang(next);this.settings.lang=next;this.settings.langPinned=true;this.persistSettings();
+    this.sound.coin();
+    from==='settings'?this.showSettings():this.showStart();
+  },
   showSettings(){
     const c=modal(this,'resetOverlay',t('잠깐, 나만의 설정'),t('편안하게 즐길 수 있도록'));
     art(this,c,'poop',270,255,154,173);
     button(this,c,270,414,420,66,t('효과음  {s}',{s:this.sound.soundOn?t('켜짐 🔊'):t('꺼짐 🔇')}),C.blue,()=>{this.sound.soundOn=!this.sound.soundOn;this.persistSettings();this.showSettings()});
     button(this,c,270,500,420,66,t('진동  {s}',{s:this.sound.vibrationOn?t('켜짐'):t('꺼짐')}),C.lilac,()=>{this.sound.vibrationOn=!this.sound.vibrationOn;this.persistSettings();this.showSettings()});
-    // 언어는 누를 때마다 ko → en → ja 로 돌아간다. 셋뿐이라 목록을 따로 띄울 이유가 없다.
-    button(this,c,270,586,420,66,t('언어  {s}',{s:LANG_NAMES[getLang()]}),C.gold,()=>{
-      const next=LANGS[(LANGS.indexOf(getLang())+1)%LANGS.length];
-      setLang(next);this.settings.lang=next;this.persistSettings();this.showSettings();
-    });
+    button(this,c,270,586,420,66,t('언어  {s}',{s:LANG_NAMES[getLang()]}),C.gold,()=>this.cycleLang('settings'));
     text(this,c,270,672,t('기록과 해금한 수비대는 자동으로 저장돼요.'),15,C.muted);
     button(this,c,270,744,300,48,t('데이터 초기화'),C.peach,()=>this.confirmReset(),16);
   },
